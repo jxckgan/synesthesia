@@ -199,7 +199,7 @@ int main(int, char**) {
                 // EQ Window
                 if (showUI) {
                     ImVec2 displaySize = ImGui::GetIO().DisplaySize;
-                    ImVec2 windowSize = ImVec2(200, 140);
+                    ImVec2 windowSize = ImVec2(375, 123);
 
                     ImGui::SetNextWindowPos(ImVec2(15, displaySize.y - windowSize.y - 15), ImGuiCond_Always);
                     ImGui::SetNextWindowSize(windowSize, ImGuiCond_Always);
