@@ -26,4 +26,4 @@ make run
 - Lightweight FFT possible w/ [KissFFT](https://github.com/mborgerding/kissfft)
 
 > **Note**:
-> This application is artistic in nature, and doesn't aim to replicate either Synesthesia (Chromesthesia) or to be scientifically accurate.
+> This application is artistic in nature, and doesn't aim to replicate Synesthesia (Chromesthesia) or to be scientifically accurate.
