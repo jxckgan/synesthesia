@@ -51,6 +51,10 @@ clean:
 run: $(EXE)
 	./$(EXE)
 
+app: $(EXE)
+	rm -rf ./synesthesia.app
+	./meta/appify.sh -s ./build/synesthesia -i ./meta/icon/app.icns
+
 $(BUILD_DIR):
 	@mkdir -p $@
 

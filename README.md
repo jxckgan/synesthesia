@@ -11,6 +11,12 @@ git clone --recurse-submodules https://github.com/jxckgan/synesthesia \
 make run
 ```
 
+To build a macOS application, we can use [Appify](/meta/appify.sh) to build a basic app bundle (app will be placed in the root of the repository):
+
+```sh
+make app
+```
+
 ### Todo
 
 - [ ] Cross-platform support
@@ -24,6 +30,7 @@ make run
 - Visible Light Spectrum to RGB: [Endolith](https://www.endolith.com/wordpress/2010/09/15/a-mapping-between-musical-notes-and-colors/)
 - GUI built w/  [Dear ImGui](https://github.com/ocornut/imgui)
 - Lightweight FFT possible w/ [KissFFT](https://github.com/mborgerding/kissfft)
+- macOS Application Building: [Appify/OSX App in Plain C](https://github.com/jimon/osx_app_in_plain_c)
 
 > **Note**:
 > This application is artistic in nature, and doesn't aim to replicate Synesthesia (Chromesthesia) or to be scientifically accurate.

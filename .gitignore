@@ -1,6 +1,7 @@
 # build & misc
 /build/
 /imgui.ini
+/*.app
 
 # macOS
 .DS_Store
