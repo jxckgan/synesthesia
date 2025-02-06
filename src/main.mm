@@ -162,10 +162,14 @@ int main(int, char**) {
                 ImGui::End();
 
                 // EQ Window
-                ImGui::SetNextWindowPos(ImVec2(15, 240), ImGuiCond_Always);
-                ImGui::SetNextWindowSize(ImVec2(200, 140), ImGuiCond_Always);
+                ImVec2 displaySize = ImGui::GetIO().DisplaySize;
+                ImVec2 windowSize = ImVec2(300, 125);
+                ImGui::SetNextWindowPos(ImVec2(15, displaySize.y - windowSize.y - 15), ImGuiCond_Always);
+                ImGui::SetNextWindowSize(windowSize, ImGuiCond_Always);
+
                 ImGui::Begin("EQ Controls");
 
+                // EQ controls
                 static float lowGain = 1.0f;
                 static float midGain = 1.0f;
                 static float highGain = 1.0f;
@@ -179,6 +183,7 @@ int main(int, char**) {
                     midGain = 1.0f;
                     highGain = 1.0f;
                 }
+
                 ImGui::End();
 
                 // Update FFT processor w/ current EQ settings
