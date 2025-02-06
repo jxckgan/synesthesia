@@ -159,7 +159,14 @@ int main(int, char**) {
 
                     ImGui::SetNextWindowPos(textPos);
                     ImGui::SetNextWindowBgAlpha(0.0f);
-                    ImGui::Begin("InfoOverlay", nullptr, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoInputs);
+                    ImGui::Begin("InfoOverlay", nullptr, 
+                        ImGuiWindowFlags_NoTitleBar | 
+                        ImGuiWindowFlags_NoResize | 
+                        ImGuiWindowFlags_NoMove | 
+                        ImGuiWindowFlags_NoScrollbar | 
+                        ImGuiWindowFlags_NoInputs | 
+                        ImGuiWindowFlags_NoBackground | 
+                        ImGuiWindowFlags_NoDecoration);
 
                     ImGui::Text("Press (H) to Show/Hide");
 
