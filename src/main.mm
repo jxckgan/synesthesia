@@ -101,33 +101,41 @@ int main(int, char**) {
             id<MTLRenderCommandEncoder> renderEncoder = [commandBuffer renderCommandEncoderWithDescriptor:renderPassDescriptor];
             [renderEncoder pushDebugGroup:@"synesthesia"];
 
+            // Toggle UI On/Off with 'H' key
+            static bool showUI = true;
+            if (ImGui::IsKeyPressed(ImGuiKey_H)) {
+                showUI = !showUI;
+            }
+
             // Start a new ImGui frame
             ImGui_ImplMetal_NewFrame(renderPassDescriptor);
             ImGui_ImplGlfw_NewFrame();
             ImGui::NewFrame();
 
             // Create a window for audio input device selection
-            ImGui::SetNextWindowPos(ImVec2(15, 15), ImGuiCond_Always);
-            ImGui::SetNextWindowSize(ImVec2(200, 55), ImGuiCond_Always);
-            ImGui::Begin("Input Selection");
+            if (showUI) {
+                ImGui::SetNextWindowPos(ImVec2(15, 15), ImGuiCond_Always);
+                ImGui::SetNextWindowSize(ImVec2(200, 55), ImGuiCond_Always);
+                ImGui::Begin("Input Selection");
 
-            if (!devices.empty()) {
-                if (ImGui::Combo("##", &selectedDeviceIndex, deviceNames.data(), deviceNames.size())) {
-                    if (selectedDeviceIndex >= 0 && selectedDeviceIndex < devices.size()) {
-                        if (!audioInput.initStream(devices[selectedDeviceIndex].paIndex)) {
-                            streamError = true;
-                        } else {
-                            streamError = false;
+                if (!devices.empty()) {
+                    if (ImGui::Combo("##", &selectedDeviceIndex, deviceNames.data(), deviceNames.size())) {
+                        if (selectedDeviceIndex >= 0 && selectedDeviceIndex < devices.size()) {
+                            if (!audioInput.initStream(devices[selectedDeviceIndex].paIndex)) {
+                                streamError = true;
+                            } else {
+                                streamError = false;
+                            }
                         }
                     }
+                    if (streamError) {
+                        ImGui::TextColored(ImVec4(1, 0, 0, 1), "Error opening device!");
+                    }
+                } else {
+                    ImGui::Text("No audio input devices found.");
                 }
-                if (streamError) {
-                    ImGui::TextColored(ImVec4(1, 0, 0, 1), "Error opening device!");
-                }
-            } else {
-                ImGui::Text("No audio input devices found.");
+                ImGui::End();
             }
-            ImGui::End();
 
             // Process audio data and update visuals if a device is selected
             if (selectedDeviceIndex >= 0) {
@@ -145,46 +153,64 @@ int main(int, char**) {
                 clear_color[1] = clear_color[1] * (1.0f - SMOOTHING) + colourResult.g * SMOOTHING;
                 clear_color[2] = clear_color[2] * (1.0f - SMOOTHING) + colourResult.b * SMOOTHING;
 
-                // Display frequency and colour information
-                ImGui::SetNextWindowPos(ImVec2(15, 85), ImGuiCond_Always);
-                ImGui::SetNextWindowSize(ImVec2(200, 140), ImGuiCond_Always);
-                ImGui::Begin("Frequency Info");
-                if (!peaks.empty()) {
-                    ImGui::Text("Dominant: %.1f Hz", peaks[0].frequency);
-                    ImGui::Text("Wavelength: %.1f nm", colourResult.dominantWavelength);
-                    for (size_t i = 0; i < peaks.size(); ++i) {
-                        ImGui::Text("Peak %d: %.1f Hz", static_cast<int>(i) + 1, peaks[i].frequency);
-                    }
-                } else {
-                    ImGui::Text("No significant frequencies");
+                if (showUI) {
+                    ImVec2 textSize = ImGui::CalcTextSize("Press (H) to Show/Hide");
+                    ImVec2 textPos = ImVec2(ImGui::GetIO().DisplaySize.x - textSize.x - 15, ImGui::GetIO().DisplaySize.y - textSize.y - 15);
+
+                    ImGui::SetNextWindowPos(textPos);
+                    ImGui::SetNextWindowBgAlpha(0.0f);
+                    ImGui::Begin("InfoOverlay", nullptr, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoInputs);
+
+                    ImGui::Text("Press (H) to Show/Hide");
+
+                    ImGui::End();
                 }
-                ImGui::Text("RGB: (%.2f, %.2f, %.2f)", clear_color[0], clear_color[1], clear_color[2]);
-                ImGui::End();
 
-                // EQ Window
-                ImVec2 displaySize = ImGui::GetIO().DisplaySize;
-                ImVec2 windowSize = ImVec2(300, 125);
-                ImGui::SetNextWindowPos(ImVec2(15, displaySize.y - windowSize.y - 15), ImGuiCond_Always);
-                ImGui::SetNextWindowSize(windowSize, ImGuiCond_Always);
+                // Display frequency and colour information
+                if (showUI) {
+                    ImGui::SetNextWindowPos(ImVec2(15, 85), ImGuiCond_Always);
+                    ImGui::SetNextWindowSize(ImVec2(200, 140), ImGuiCond_Always);
+                    ImGui::Begin("Frequency Info");
+                    if (!peaks.empty()) {
+                        ImGui::Text("Dominant: %.1f Hz", peaks[0].frequency);
+                        ImGui::Text("Wavelength: %.1f nm", colourResult.dominantWavelength);
+                        for (size_t i = 0; i < peaks.size(); ++i) {
+                            ImGui::Text("Peak %d: %.1f Hz", static_cast<int>(i) + 1, peaks[i].frequency);
+                        }
+                    } else {
+                        ImGui::Text("No significant frequencies");
+                    }
+                    ImGui::Text("RGB: (%.2f, %.2f, %.2f)", clear_color[0], clear_color[1], clear_color[2]);
+                    ImGui::End();
+                }
 
-                ImGui::Begin("EQ Controls");
-
-                // EQ controls
+                // EQ Controls
                 static float lowGain = 1.0f;
                 static float midGain = 1.0f;
                 static float highGain = 1.0f;
 
-                ImGui::SliderFloat("Low (20-250 Hz)", &lowGain, 0.0f, 2.0f);
-                ImGui::SliderFloat("Mid (250-2K Hz)", &midGain, 0.0f, 2.0f);
-                ImGui::SliderFloat("High (2K-20K Hz)", &highGain, 0.0f, 2.0f);
+                // EQ Window
+                if (showUI) {
+                    ImVec2 displaySize = ImGui::GetIO().DisplaySize;
+                    ImVec2 windowSize = ImVec2(200, 140);
 
-                if (ImGui::Button("Reset EQ")) {
-                    lowGain = 1.0f;
-                    midGain = 1.0f;
-                    highGain = 1.0f;
+                    ImGui::SetNextWindowPos(ImVec2(15, displaySize.y - windowSize.y - 15), ImGuiCond_Always);
+                    ImGui::SetNextWindowSize(windowSize, ImGuiCond_Always);
+                    
+                    ImGui::Begin("EQ Controls");
+
+                    ImGui::SliderFloat("Low (20-250 Hz)", &lowGain, 0.0f, 2.0f);
+                    ImGui::SliderFloat("Mid (250-2K Hz)", &midGain, 0.0f, 2.0f);
+                    ImGui::SliderFloat("High (2K-20K Hz)", &highGain, 0.0f, 2.0f);
+
+                    if (ImGui::Button("Reset EQ")) {
+                        lowGain = 1.0f;
+                        midGain = 1.0f;
+                        highGain = 1.0f;
+                    }
+
+                    ImGui::End();
                 }
-
-                ImGui::End();
 
                 // Update FFT processor w/ current EQ settings
                 audioInput.getFFTProcessor().setEQGains(lowGain, midGain, highGain);
@@ -196,8 +222,6 @@ int main(int, char**) {
 
             [renderEncoder popDebugGroup];
             [renderEncoder endEncoding];
-
-            // Present the drawable and commit the command buffer
             [commandBuffer presentDrawable:drawable];
             [commandBuffer commit];
         }
