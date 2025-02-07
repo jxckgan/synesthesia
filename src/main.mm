@@ -153,6 +153,7 @@ int main(int, char**) {
                 clear_color[1] = clear_color[1] * (1.0f - SMOOTHING) + colourResult.g * SMOOTHING;
                 clear_color[2] = clear_color[2] * (1.0f - SMOOTHING) + colourResult.b * SMOOTHING;
 
+                // Show/Hide Text
                 if (showUI) {
                     ImVec2 textSize = ImGui::CalcTextSize("Press (H) to Show/Hide");
                     ImVec2 textPos = ImVec2(ImGui::GetIO().DisplaySize.x - textSize.x - 15, ImGui::GetIO().DisplaySize.y - textSize.y - 15);
@@ -196,10 +197,14 @@ int main(int, char**) {
                 static float midGain = 1.0f;
                 static float highGain = 1.0f;
 
+                static bool showSpectrumAnalyser = true;
+                static std::vector<float> smoothedMagnitudes(FFTProcessor::FFT_SIZE / 2, 0.0f);
+                static float smoothingFactor = 0.2f;
+
                 // EQ Window
                 if (showUI) {
                     ImVec2 displaySize = ImGui::GetIO().DisplaySize;
-                    ImVec2 windowSize = ImVec2(375, 123);
+                    ImVec2 windowSize = ImVec2(375, 127);
 
                     ImGui::SetNextWindowPos(ImVec2(15, displaySize.y - windowSize.y - 15), ImGuiCond_Always);
                     ImGui::SetNextWindowSize(windowSize, ImGuiCond_Always);
@@ -210,17 +215,55 @@ int main(int, char**) {
                     ImGui::SliderFloat("Mid (250-2K Hz)", &midGain, 0.0f, 2.0f);
                     ImGui::SliderFloat("High (2K-20K Hz)", &highGain, 0.0f, 2.0f);
 
+                    ImGui::Spacing();
                     if (ImGui::Button("Reset EQ")) {
                         lowGain = 1.0f;
                         midGain = 1.0f;
                         highGain = 1.0f;
                     }
-
+                    ImGui::SameLine();
+                    if (ImGui::Button(showSpectrumAnalyser ? "Hide Spectrum" : "Show Spectrum")) {
+                        showSpectrumAnalyser = !showSpectrumAnalyser;
+                    }
+                    
                     ImGui::End();
                 }
 
                 // Update FFT processor w/ current EQ settings
                 audioInput.getFFTProcessor().setEQGains(lowGain, midGain, highGain);
+
+                // Spectrum Analyser Window
+                if (showSpectrumAnalyser) {
+                    if (showUI) {
+                        ImGui::SetNextWindowSize(ImVec2(617, 185), ImGuiCond_Always);
+                        ImGui::Begin("Spectrum Analyser", &showSpectrumAnalyser);
+
+                        const auto& magnitudes = audioInput.getFFTProcessor().getMagnitudesBuffer();
+                        int count = FFTProcessor::FFT_SIZE / 2;
+
+                        // Apply smoothing using EMA
+                        for (int i = 0; i < count; ++i) {
+                            smoothedMagnitudes[i] = smoothingFactor * magnitudes[i] + (1.0f - smoothingFactor) * smoothedMagnitudes[i];
+                        }
+
+                        // Frequency axis mapping to log scale
+                        static std::vector<float> frequencies(count);
+                        for (int i = 0; i < count; ++i) {
+                            float normalisedIndex = static_cast<float>(i) / count;
+                            frequencies[i] = 20.0f * std::pow(10.0f, normalisedIndex * 2.5f);
+                        }
+
+                        // Normalise Y-Axis
+                        float maxMagnitude = *std::max_element(smoothedMagnitudes.begin(), smoothedMagnitudes.end());
+                        float yMin = 0.0f;
+                        float yMax = maxMagnitude > 0.0001f ? maxMagnitude * 1.2f : 0.1f;
+
+                        // Plot frequencies
+                        ImGui::PlotLines("##", smoothedMagnitudes.data(), count, 0, nullptr, yMin, yMax, ImVec2(600, 150));
+
+                        ImGui::End();
+                    }
+                }
             }
 
             // Render the ImGui frame

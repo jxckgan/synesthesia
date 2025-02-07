@@ -26,7 +26,7 @@ COMMON_FLAGS = -Wall -Wformat
 INCLUDES = -I$(IMGUI_DIR) -I$(IMGUI_DIR)/backends -I$(KISSFFT_DIR) \
            -I/usr/local/include -I/opt/homebrew/include -I/opt/local/include
 
-CXXFLAGS = -std=c++17 $(INCLUDES) $(COMMON_FLAGS)
+CXXFLAGS = -std=c++17 $(INCLUDES) $(COMMON_FLAGS) -O3 -ffast-math -march=native
 CFLAGS = -std=c11 $(INCLUDES) $(COMMON_FLAGS)
 OBJCFLAGS = -ObjC++ -fobjc-weak -fobjc-arc
 

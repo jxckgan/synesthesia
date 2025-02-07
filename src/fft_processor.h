@@ -25,6 +25,7 @@ public:
     const std::vector<FrequencyPeak>& getDominantFrequencies() const;
     void reset();
     void setEQGains(float low, float mid, float high);
+    const std::vector<float>& getMagnitudesBuffer() const;
 
 private:
     kiss_fft_cfg fft_cfg;

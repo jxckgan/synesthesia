@@ -85,15 +85,44 @@ void FFTProcessor::findFrequencyPeaks(float sampleRate) {
     for (int i = 1; i < FFT_SIZE / 2; ++i) {
         float magnitude = std::hypot(fft_out[i].r, fft_out[i].i);
         float freq = (i * sampleRate) / FFT_SIZE;
+        float lowResponse = 0.0f;
 
-        if (freq < 250.0f) {
-            magnitude *= currentLowGain;
-        } else if (freq < 2000.0f) {
-            magnitude *= currentMidGain;
-        } else {
-            magnitude *= currentHighGain;
+        if (freq <= 200.0f) {
+            lowResponse = 1.0f;
+        } else if (freq < 250.0f) {
+            lowResponse = (250.0f - freq) / (250.0f - 200.0f);
         }
 
+        float highResponse = 0.0f;
+
+        if (freq >= 2000.0f) {
+            highResponse = 1.0f;
+        } else if (freq > 1900.0f) {
+            highResponse = (freq - 1900.0f) / (2000.0f - 1900.0f);
+        }
+
+        float midResponse = 0.0f;
+
+        if (freq >= 250.0f && freq <= 1900.0f) {
+            midResponse = 1.0f;
+        }
+        else if (freq > 200.0f && freq < 250.0f) {
+            midResponse = (freq - 200.0f) / (250.0f - 200.0f);
+        }
+        else if (freq > 1900.0f && freq < 2000.0f) {
+            midResponse = (2000.0f - freq) / (2000.0f - 1900.0f);
+        }
+
+        // Adjustments for a fairer representation of frequencies (in most cases)
+        lowResponse *= 0.3f;
+        midResponse *= 0.4f;
+        highResponse *= 1.4f;
+
+        float combinedGain = (lowResponse * currentLowGain) +
+                            (midResponse * currentMidGain) +
+                            (highResponse * currentHighGain);
+
+        magnitude *= combinedGain;
         magnitudesBuffer[i] = magnitude;
     }
 
@@ -195,4 +224,8 @@ float FFTProcessor::calculateNoiseFloor(const std::vector<float>& magnitudes) co
     
     const float MAD = deviations[deviations.size() / 2];
     return median + 2.0f * MAD * 1.4826f; // Scale the MAD to approximate standard deviation
+}
+
+const std::vector<float>& FFTProcessor::getMagnitudesBuffer() const {
+    return magnitudesBuffer;
 }
