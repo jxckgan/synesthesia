@@ -4,24 +4,40 @@ Synesthesia is an application which provides a real-time visualisation of audio 
 
 ### Building & Running
 
-As of now, this project uses Metal for rendering and subsequently only runs on macOS systems. ***(Working on an OpenGL implementation for Windows/Linux systems).*** To build/run this project, make sure you've installed `GLFW` and `portaudio` using [homebrew](https://brew.sh) and have Xcode installed. To run this project, just clone this repository w/ submodules and run `make run`:
+As of now, this project uses Metal for rendering and subsequently only runs on macOS systems. To run this project, make sure `cmake` is installed, and just clone this repository w/ submodules and run `make run` (we build required dependencies locally):
 
 ```sh
-git clone --recurse-submodules https://github.com/jxckgan/synesthesia \
-make run
+# Clone the repository with submodules
+git clone --recurse-submodules https://github.com/jxckgan/synesthesia
+cd synesthesia
+
+# Create (and enter) the build directory
+mkdir build && cd build
+
+# Configure and build
+cmake ..
+cmake --build .
+
+# Run Synesthesia
+./synesthesia
 ```
 
 To build a macOS application, we can use [Appify](/meta/appify.sh) to build a basic app bundle (app will be placed in the root of the repository):
 
 ```sh
-make app
+# Configure with macOS app bundle support
+cmake -DBUILD_MACOS_APP=ON ..
+
+# Build the project and the app bundle target
+cmake --build .
+cmake --build . --target app
 ```
 
 ### Todo
 
 - [ ] Cross-platform support
-- [ ] Better/granular EQ control
-- [ ] Ability for visualisation of multiple frequency bands
+- [x] ~~Better/granular EQ control~~
+- [x] ~~Ability for visualisation of multiple frequency bands~~
 - [ ] Generally more control over settings
 - [ ] DAW-integration
 
