@@ -1,3 +1,9 @@
 [submodule "vendor/kissfft"]
 	path = vendor/kissfft
 	url = https://github.com/mborgerding/kissfft
+[submodule "vendor/glfw"]
+	path = vendor/glfw
+	url = https://github.com/glfw/glfw
+[submodule "vendor/portaudio"]
+	path = vendor/portaudio
+	url = https://github.com/PortAudio/portaudio.git
