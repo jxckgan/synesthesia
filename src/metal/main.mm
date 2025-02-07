@@ -1,4 +1,3 @@
-// main.mm
 #include "audio_input.h"
 #include "colour_mapper.h"
 #include "fft_processor.h"
