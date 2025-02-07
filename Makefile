@@ -8,9 +8,9 @@ BUILD_DIR = ./build
 
 SOURCES = \
 	$(SRC_DIR)/main.mm \
-	$(SRC_DIR)/audio_input.mm \
-	$(SRC_DIR)/colour_mapper.mm \
-	$(SRC_DIR)/fft_processor.mm \
+	$(SRC_DIR)/audio_input.cpp \
+	$(SRC_DIR)/colour_mapper.cpp \
+	$(SRC_DIR)/fft_processor.cpp \
 	$(IMGUI_DIR)/imgui.cpp \
 	$(IMGUI_DIR)/imgui_demo.cpp \
 	$(IMGUI_DIR)/imgui_draw.cpp \
