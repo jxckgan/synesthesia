@@ -72,7 +72,7 @@ bool AudioInput::initStream(int deviceIndex) {
     }
 
     const PaStreamInfo* streamInfo = Pa_GetStreamInfo(stream);
-    sampleRate = streamInfo ? streamInfo->sampleRate : 44100.0f;
+    sampleRate = streamInfo ? static_cast<float>(streamInfo->sampleRate) : 44100.0f;
 
     err = Pa_StartStream(stream);
     if (err != paNoError) {

@@ -9,6 +9,18 @@ set(SRC_DIR "${CMAKE_CURRENT_SOURCE_DIR}/src")
 set(GLFW_DIR "${CMAKE_CURRENT_SOURCE_DIR}/vendor/glfw")
 set(PORTAUDIO_DIR "${CMAKE_CURRENT_SOURCE_DIR}/vendor/portaudio")
 
+if(WIN32)
+    if(CMAKE_BUILD_TYPE STREQUAL "Release")
+        string(APPEND CMAKE_CXX_FLAGS_RELEASE " /O2 /GL")
+        string(APPEND CMAKE_EXE_LINKER_FLAGS_RELEASE " /LTCG /SUBSYSTEM:WINDOWS /ENTRY:mainCRTStartup")
+    endif()
+
+    configure_file(${CMAKE_CURRENT_SOURCE_DIR}/meta/icon/app.ico
+        ${CMAKE_BINARY_DIR}/app.ico COPYONLY)
+    configure_file(${SRC_DIR}/renderers/dx12/resource.h
+        ${CMAKE_BINARY_DIR}/resource.h COPYONLY)
+endif()
+
 if(EXISTS "${GLFW_DIR}/CMakeLists.txt")
     message(STATUS "Using vendor GLFW from ${GLFW_DIR}")
     add_subdirectory(${GLFW_DIR})
@@ -18,6 +30,7 @@ endif()
 if(EXISTS "${PORTAUDIO_DIR}/CMakeLists.txt")
     message(STATUS "Using vendor PortAudio from ${PORTAUDIO_DIR}")
     add_subdirectory(${PORTAUDIO_DIR})
+    
     if(TARGET PortAudio::PortAudio)
         set(PORTAUDIO_TARGET PortAudio::PortAudio)
     elseif(TARGET portaudio)
@@ -37,18 +50,37 @@ set(SOURCES
     ${IMGUI_DIR}/imgui_draw.cpp
     ${IMGUI_DIR}/imgui_tables.cpp
     ${IMGUI_DIR}/imgui_widgets.cpp
-    ${IMGUI_DIR}/backends/imgui_impl_glfw.cpp
     ${KISSFFT_DIR}/kiss_fft.c
 )
 
-if(APPLE)
+if(WIN32)
+    message(STATUS "Configuring for Windows (DirectX 12)")
     list(APPEND SOURCES
-        ${SRC_DIR}/metal/main.mm
-        ${IMGUI_DIR}/backends/imgui_impl_metal.mm
+        ${SRC_DIR}/renderers/dx12/main.cpp
+        ${IMGUI_DIR}/backends/imgui_impl_dx12.cpp
+        ${IMGUI_DIR}/backends/imgui_impl_win32.cpp
+        ${SRC_DIR}/renderers/dx12/app.rc
     )
+    set(DX12_LIBS d3d12 dxgi d3dcompiler)
+elseif(APPLE)
+    message(STATUS "Configuring for macOS (Metal)")
+    list(APPEND SOURCES
+        ${SRC_DIR}/renderers/metal/main.mm
+        ${IMGUI_DIR}/backends/imgui_impl_metal.mm
+        ${IMGUI_DIR}/backends/imgui_impl_glfw.cpp
+    )
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wformat -O3 -ffast-math -march=native")
+    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wall -Wformat")
+    set(OBJC_FLAGS "-ObjC++ -fobjc-weak -fobjc-arc")
 endif()
 
-include_directories(
+if(WIN32)
+    add_executable(synesthesia WIN32 ${SOURCES})
+else()
+    add_executable(synesthesia ${SOURCES})
+endif()
+
+target_include_directories(synesthesia PRIVATE
     ${IMGUI_DIR}
     ${IMGUI_DIR}/backends
     ${KISSFFT_DIR}
@@ -56,16 +88,11 @@ include_directories(
     ${SRC_DIR}/audio
     ${SRC_DIR}/colour
     ${SRC_DIR}/fft
+    ${CMAKE_BINARY_DIR}
     /usr/local/include
     /opt/homebrew/include
     /opt/local/include
 )
-
-if(APPLE)
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wformat -O3 -ffast-math -march=native")
-    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wall -Wformat")
-    set(OBJC_FLAGS "-ObjC++ -fobjc-weak -fobjc-arc")
-endif()
 
 if(APPLE)
     find_library(METAL_FRAMEWORK Metal REQUIRED)
@@ -74,11 +101,7 @@ if(APPLE)
     find_library(IOKIT_FRAMEWORK IOKit REQUIRED)
     find_library(COREVIDEO_FRAMEWORK CoreVideo REQUIRED)
     find_library(QUARTZCORE_FRAMEWORK QuartzCore REQUIRED)
-endif()
 
-add_executable(synesthesia ${SOURCES})
-
-if(APPLE)
     target_link_libraries(synesthesia
         ${METAL_FRAMEWORK}
         ${METALKIT_FRAMEWORK}
@@ -90,11 +113,17 @@ if(APPLE)
         ${PORTAUDIO_TARGET}
         m
     )
+elseif(WIN32)
+    target_link_libraries(synesthesia
+        ${GLFW_TARGET}
+        ${PORTAUDIO_TARGET}
+        ${DX12_LIBS}
+    )
 else()
     target_link_libraries(synesthesia
         ${GLFW_TARGET}
         ${PORTAUDIO_TARGET}
-        m
+        GL
     )
 endif()
 
@@ -102,14 +131,28 @@ set_target_properties(synesthesia PROPERTIES
     RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}
 )
 
-if(APPLE)
+if(WIN32 AND CMAKE_BUILD_TYPE STREQUAL "Release")
+    install(TARGETS synesthesia
+        RUNTIME DESTINATION bin
+    )
+    install(FILES 
+        $<TARGET_RUNTIME_DLLS:synesthesia>
+        DESTINATION bin
+    )
+elseif(APPLE)
     option(BUILD_MACOS_APP "Build a macOS application bundle" OFF)
     if(BUILD_MACOS_APP)
         add_custom_target(app
             COMMAND ${CMAKE_COMMAND} -E remove_directory ${CMAKE_BINARY_DIR}/synesthesia.app
-            COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/meta/appify.sh -s ${CMAKE_BINARY_DIR}/synesthesia -i ${CMAKE_CURRENT_SOURCE_DIR}/meta/icon/app.icns
+            COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/meta/appify.sh
+                -s ${CMAKE_BINARY_DIR}/synesthesia
+                -i ${CMAKE_CURRENT_SOURCE_DIR}/meta/icon/app.icns
             DEPENDS synesthesia
             COMMENT "Creating macOS app bundle..."
         )
     endif()
+else()
+    install(TARGETS synesthesia
+        RUNTIME DESTINATION bin
+    )
 endif()

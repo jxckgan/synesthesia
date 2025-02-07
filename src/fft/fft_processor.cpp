@@ -6,6 +6,10 @@
 #include <cassert>
 #include <chrono>
 
+#ifndef M_PI
+#define M_PI 3.14159265358979323846
+#endif
+
 FFTProcessor::FFTProcessor()
     : fft_in(FFT_SIZE)
     , fft_out(FFT_SIZE)
@@ -19,10 +23,9 @@ FFTProcessor::FFTProcessor()
     fft_cfg = kiss_fft_alloc(FFT_SIZE, 0, nullptr, nullptr);
     
     for (int i = 0; i < FFT_SIZE; ++i) {
-        hannWindow[i] = 0.5f * (1.0f - std::cos(2.0f * M_PI * i / (FFT_SIZE - 1)));
+        hannWindow[i] = 0.5f * (1.0f - std::cos(2.0f * static_cast<float>(M_PI) * static_cast<float>(i) / static_cast<float>(FFT_SIZE - 1)));
     }
 }
-
 FFTProcessor::~FFTProcessor() {
     kiss_fft_free(fft_cfg);
 }
