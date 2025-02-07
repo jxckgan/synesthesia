@@ -7,10 +7,11 @@ SRC_DIR = ./src
 BUILD_DIR = ./build
 
 SOURCES = \
-	$(SRC_DIR)/main.mm \
-	$(SRC_DIR)/audio_input.cpp \
-	$(SRC_DIR)/colour_mapper.cpp \
-	$(SRC_DIR)/fft_processor.cpp \
+	$(SRC_DIR)/metal/main.mm \
+	$(SRC_DIR)/audio/audio_input.cpp \
+	$(SRC_DIR)/colour/colour_mapper.cpp \
+	$(SRC_DIR)/fft/fft_processor.cpp \
+	$(SRC_DIR)/ui.cpp \
 	$(IMGUI_DIR)/imgui.cpp \
 	$(IMGUI_DIR)/imgui_demo.cpp \
 	$(IMGUI_DIR)/imgui_draw.cpp \
@@ -24,6 +25,7 @@ OBJS = $(addprefix $(BUILD_DIR)/, $(addsuffix .o, $(basename $(notdir $(SOURCES)
 
 COMMON_FLAGS = -Wall -Wformat
 INCLUDES = -I$(IMGUI_DIR) -I$(IMGUI_DIR)/backends -I$(KISSFFT_DIR) \
+           -I$(SRC_DIR) -I$(SRC_DIR)/audio -I$(SRC_DIR)/colour -I$(SRC_DIR)/fft \
            -I/usr/local/include -I/opt/homebrew/include -I/opt/local/include
 
 CXXFLAGS = -std=c++17 $(INCLUDES) $(COMMON_FLAGS) -O3 -ffast-math -march=native
@@ -36,8 +38,8 @@ LIB_DIRS = -L/usr/local/lib -L/opt/homebrew/lib -L/opt/local/lib
 LDLIBS = -lglfw -lportaudio -lm
 LIBS = $(FRAMEWORKS) $(LIB_DIRS) $(LDLIBS)
 
-vpath %.cpp $(SRC_DIR) $(IMGUI_DIR) $(IMGUI_DIR)/backends
-vpath %.mm $(SRC_DIR) $(IMGUI_DIR)/backends
+vpath %.cpp $(SRC_DIR) $(SRC_DIR)/audio $(SRC_DIR)/colour $(SRC_DIR)/fft $(IMGUI_DIR) $(IMGUI_DIR)/backends
+vpath %.mm $(SRC_DIR)/metal $(IMGUI_DIR)/backends
 vpath %.c $(KISSFFT_DIR)
 
 .PHONY: all clean run
