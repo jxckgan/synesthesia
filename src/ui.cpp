@@ -119,9 +119,7 @@ void updateUI(AudioInput &audioInput,
             ImGui::SliderFloat("High (2K-20K Hz)", &highGain, 0.0f, 2.0f);
             ImGui::Spacing();
             if (ImGui::Button("Reset EQ")) {
-                lowGain = 1.0f;
-                midGain = 1.0f;
-                highGain = 1.0f;
+                lowGain = midGain = highGain = 1.0f;
             }
             ImGui::SameLine();
             if (ImGui::Button(showSpectrumAnalyser ? "Hide Spectrum" : "Show Spectrum")) {
@@ -145,13 +143,6 @@ void updateUI(AudioInput &audioInput,
             for (int i = 0; i < count; ++i) {
                 smoothedMagnitudes[i] = smoothingFactor * magnitudes[i] +
                                         (1.0f - smoothingFactor) * smoothedMagnitudes[i];
-            }
-
-            // Frequency axis mapping to log scale
-            static std::vector<float> frequencies(count);
-            for (int i = 0; i < count; ++i) {
-                float normalisedIndex = static_cast<float>(i) / count;
-                frequencies[i] = 20.0f * std::pow(10.0f, normalisedIndex * 2.5f);
             }
 
             // Normalise Y-Axis
