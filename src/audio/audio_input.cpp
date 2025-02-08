@@ -1,5 +1,4 @@
 #include "audio_input.h"
-
 #include <algorithm>
 #include <cstdlib>
 #include <iostream>
@@ -9,7 +8,7 @@ AudioInput::AudioInput() : stream(nullptr), sampleRate(44100.0f) {
     if (err != paNoError) {
         std::cerr << "PortAudio initialization failed: " 
                   << Pa_GetErrorText(err) << std::endl;
-        exit(1);
+        std::exit(1);
     }
 }
 
@@ -21,17 +20,17 @@ AudioInput::~AudioInput() {
 // Retrieves a list of available input devices
 std::vector<AudioInput::DeviceInfo> AudioInput::getInputDevices() {
     std::vector<DeviceInfo> devices;
-    int numDevices = Pa_GetDeviceCount();
-    if (numDevices < 0) {
+
+    if (Pa_GetDeviceCount() < 0) {
         std::cerr << "Failed to get device count: " 
-                  << Pa_GetErrorText(numDevices) << std::endl;
+                  << Pa_GetErrorText(Pa_GetDeviceCount()) << std::endl;
         return devices;
     }
 
-    for (int i = 0; i < numDevices; ++i) {
+    for (int i = 0; i < Pa_GetDeviceCount(); ++i) {
         const PaDeviceInfo* deviceInfo = Pa_GetDeviceInfo(i);
         if (deviceInfo && deviceInfo->maxInputChannels > 0) {
-            devices.push_back({ deviceInfo->name, i });
+            devices.emplace_back(DeviceInfo{deviceInfo->name, i});
         }
     }
     return devices;
@@ -55,29 +54,28 @@ bool AudioInput::initStream(int deviceIndex) {
     inputParameters.hostApiSpecificStreamInfo = nullptr;
 
     PaError err = Pa_OpenStream(
-        &stream,
-        &inputParameters,
-        nullptr,
-        deviceInfo->defaultSampleRate,
-        FFTProcessor::FFT_SIZE,
-        paClipOff,
-        audioCallback,
-        this
+        &stream, &inputParameters, nullptr, 
+        deviceInfo->defaultSampleRate, 
+        FFTProcessor::FFT_SIZE, paClipOff, 
+        audioCallback, this
     );
 
     if (err != paNoError) {
         std::cerr << "Failed to open audio stream: " 
                   << Pa_GetErrorText(err) << std::endl;
+        stream = nullptr;
         return false;
     }
 
-    const PaStreamInfo* streamInfo = Pa_GetStreamInfo(stream);
-    sampleRate = streamInfo ? static_cast<float>(streamInfo->sampleRate) : 44100.0f;
+    if (const PaStreamInfo* streamInfo = Pa_GetStreamInfo(stream)) {
+        sampleRate = static_cast<float>(streamInfo->sampleRate);
+    }
 
     err = Pa_StartStream(stream);
     if (err != paNoError) {
         std::cerr << "Failed to start audio stream: " 
                   << Pa_GetErrorText(err) << std::endl;
+        stopStream();
         return false;
     }
 
@@ -86,13 +84,14 @@ bool AudioInput::initStream(int deviceIndex) {
 
 // Maps the current dominant frequency to a colour
 void AudioInput::getColourForCurrentFrequency(float& r, float& g, float& b, float& freq, float& wavelength) {
-    auto& peaks = fftProcessor.getDominantFrequencies();
+    const auto& peaks = fftProcessor.getDominantFrequencies();
     std::vector<float> freqs, mags;
+
     for (const auto& peak : peaks) {
         freqs.push_back(peak.frequency);
         mags.push_back(peak.magnitude);
     }
-    
+
     auto colourResult = ColourMapper::frequenciesToColour(freqs, mags);
     r = colourResult.r;
     g = colourResult.g;
@@ -111,22 +110,21 @@ void AudioInput::stopStream() {
 }
 
 // Processes incoming audio data
-int AudioInput::audioCallback(const void* input, void*,
+int AudioInput::audioCallback(const void* input, void*, 
                               unsigned long frameCount,
-                              const PaStreamCallbackTimeInfo*,
-                              PaStreamCallbackFlags,
+                              const PaStreamCallbackTimeInfo*, 
+                              PaStreamCallbackFlags, 
                               void* userData) {
-    AudioInput* audio = static_cast<AudioInput*>(userData);
-    const float* in = static_cast<const float*>(input);
+    auto* audio = static_cast<AudioInput*>(userData);
+    const auto* in = static_cast<const float*>(input);
 
-    // Copy the input buffer into a vector
-    std::vector<float> buffer(frameCount);
-    std::copy(in, in + frameCount, buffer.begin());
-    
-    // Lock the mutex
-    std::lock_guard<std::mutex> lock(audio->bufferMutex);
-    audio->fftProcessor.processBuffer(buffer, audio->sampleRate);
-    
+    std::vector<float> buffer(in, in + frameCount);
+
+    {
+        std::lock_guard<std::mutex> lock(audio->bufferMutex);
+        audio->fftProcessor.processBuffer(buffer, audio->sampleRate);
+    }
+
     return paContinue;
 }
 
