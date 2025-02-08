@@ -53,6 +53,7 @@ set(SOURCES
     ${IMGUI_DIR}/imgui_tables.cpp
     ${IMGUI_DIR}/imgui_widgets.cpp
     ${KISSFFT_DIR}/kiss_fft.c
+    ${KISSFFT_DIR}/kiss_fftr.c
 )
 
 if(WIN32)
