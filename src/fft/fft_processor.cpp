@@ -5,6 +5,8 @@
 #include <algorithm>
 #include <cassert>
 #include <chrono>
+#include <iostream>
+#include <vector>
 
 #ifndef M_PI
 #define M_PI 3.14159265358979323846
@@ -21,11 +23,16 @@ FFTProcessor::FFTProcessor()
     , highGain(1.0f)
 {
     fft_cfg = kiss_fft_alloc(FFT_SIZE, 0, nullptr, nullptr);
+    if (!fft_cfg) {
+        std::cerr << "Error allocating FFT configuration." << std::endl;
+        std::exit(1);
+    }
     
     for (int i = 0; i < FFT_SIZE; ++i) {
-        hannWindow[i] = 0.5f * (1.0f - std::cos(2.0f * static_cast<float>(M_PI) * static_cast<float>(i) / static_cast<float>(FFT_SIZE - 1)));
+        hannWindow[i] = 0.5f * (1.0f - std::cos(2.0f * static_cast<float>(M_PI) * i / (FFT_SIZE - 1)));
     }
 }
+
 FFTProcessor::~FFTProcessor() {
     kiss_fft_free(fft_cfg);
 }
@@ -59,7 +66,6 @@ void FFTProcessor::processBuffer(const std::vector<float>& buffer, float sampleR
         bin.i *= scaleFactor;
     }
 
-    // Identify frequency peaks
     findFrequencyPeaks(sampleRate);
 }
 
@@ -89,31 +95,28 @@ void FFTProcessor::findFrequencyPeaks(float sampleRate) {
         float magnitude = std::hypot(fft_out[i].r, fft_out[i].i);
         float freq = (i * sampleRate) / FFT_SIZE;
         float lowResponse = 0.0f;
-
         if (freq <= 200.0f) {
             lowResponse = 1.0f;
         } else if (freq < 250.0f) {
-            lowResponse = (250.0f - freq) / (250.0f - 200.0f);
+            lowResponse = (250.0f - freq) / 50.0f;
         }
 
         float highResponse = 0.0f;
-
         if (freq >= 2000.0f) {
             highResponse = 1.0f;
         } else if (freq > 1900.0f) {
-            highResponse = (freq - 1900.0f) / (2000.0f - 1900.0f);
+            highResponse = (freq - 1900.0f) / 100.0f;
         }
 
         float midResponse = 0.0f;
-
         if (freq >= 250.0f && freq <= 1900.0f) {
             midResponse = 1.0f;
         }
         else if (freq > 200.0f && freq < 250.0f) {
-            midResponse = (freq - 200.0f) / (250.0f - 200.0f);
+            midResponse = (freq - 200.0f) / 50.0f;
         }
         else if (freq > 1900.0f && freq < 2000.0f) {
-            midResponse = (2000.0f - freq) / (2000.0f - 1900.0f);
+            midResponse = (2000.0f - freq) / 100.0f;
         }
 
         // Adjustments for a fairer representation of frequencies (in most cases)
@@ -122,8 +125,8 @@ void FFTProcessor::findFrequencyPeaks(float sampleRate) {
         highResponse *= 1.4f;
 
         float combinedGain = (lowResponse * currentLowGain) +
-                            (midResponse * currentMidGain) +
-                            (highResponse * currentHighGain);
+                             (midResponse * currentMidGain) +
+                             (highResponse * currentHighGain);
 
         magnitude *= combinedGain;
         magnitudesBuffer[i] = magnitude;
@@ -142,16 +145,17 @@ void FFTProcessor::findFrequencyPeaks(float sampleRate) {
         }
     }
 
+    // Sort peaks in descending order by magnitude
     std::sort(rawPeaks.begin(), rawPeaks.end(),
               [](const FrequencyPeak& a, const FrequencyPeak& b) {
                   return a.magnitude > b.magnitude;
               });
 
+    // Filter out harmonics
     std::vector<FrequencyPeak> newPeaks;
     for (const auto& peak : rawPeaks) {
         if (newPeaks.size() >= MAX_PEAKS)
             break;
-
         bool is_harmonic = false;
         for (const auto& existing : newPeaks) {
             if (isHarmonic(peak.frequency, existing.frequency, sampleRate)) {
@@ -185,8 +189,8 @@ bool FFTProcessor::isHarmonic(float testFreq, float baseFreq, float sampleRate) 
     if (baseFreq < 250.0f) {
         dynamicTolerance = 0.05f * (baseFreq / 250.0f);
     }
+    float ratio = testFreq / baseFreq;
     for (int h = 2; h <= 8; ++h) {
-        float ratio = testFreq / baseFreq;
         if (std::abs(ratio - static_cast<float>(h)) < dynamicTolerance)
             return true;
     }
@@ -213,22 +217,31 @@ float FFTProcessor::interpolateFrequency(int bin, float sampleRate) const {
 
 // Calculates a noise floor
 float FFTProcessor::calculateNoiseFloor(const std::vector<float>& magnitudes) const {
-    std::vector<float> sortedMags(magnitudes.begin() + 1, magnitudes.begin() + FFT_SIZE/2);
-    std::sort(sortedMags.begin(), sortedMags.end());
-    
-    const float median = sortedMags[sortedMags.size() / 2];
-    std::vector<float> deviations;
-    deviations.reserve(sortedMags.size());
-    
-    for (const auto& m : sortedMags) {
-        deviations.push_back(std::abs(m - median));
+    // Use nth_element for median computation
+    std::vector<float> mags(magnitudes.begin() + 1, magnitudes.begin() + magnitudes.size());
+    size_t n = mags.size();
+    auto mid_it = mags.begin() + n / 2;
+    std::nth_element(mags.begin(), mid_it, mags.end());
+    float median = *mid_it;
+
+    std::vector<float> deviations(n);
+    for (size_t i = 0; i < n; ++i) {
+        deviations[i] = std::abs(mags[i] - median);
     }
-    std::sort(deviations.begin(), deviations.end());
-    
-    const float MAD = deviations[deviations.size() / 2];
-    return median + 2.0f * MAD * 1.4826f; // Scale the MAD to approximate standard deviation
+    auto mid_dev_it = deviations.begin() + n / 2;
+    std::nth_element(deviations.begin(), mid_dev_it, deviations.end());
+    float MAD = *mid_dev_it;
+    return median + 2.0f * MAD * 1.4826f;
 }
 
 const std::vector<float>& FFTProcessor::getMagnitudesBuffer() const {
     return magnitudesBuffer;
+}
+
+void FFTProcessor::reset() {
+    std::lock_guard<std::mutex> lock(peaksMutex);
+    currentPeaks.clear();
+    retainedPeaks.clear();
+    std::fill(magnitudesBuffer.begin(), magnitudesBuffer.end(), 0.0f);
+    lastValidPeakTime = std::chrono::steady_clock::now();
 }
