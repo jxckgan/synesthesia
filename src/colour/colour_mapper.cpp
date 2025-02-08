@@ -8,17 +8,27 @@
 ColourMapper::ColourResult ColourMapper::frequenciesToColour(
     const std::vector<float>& frequencies, const std::vector<float>& magnitudes)
 {
+    // Default result if no valid input is provided
     ColourResult result { 0.1f, 0.1f, 0.1f, 0.0f };
-    if (frequencies.empty()) return result;
+    if (frequencies.empty() || magnitudes.empty())
+        return result;
 
-    float totalMagnitude = std::accumulate(magnitudes.begin(), magnitudes.end(), 0.0f);
-    if (totalMagnitude <= 0) return result;
+    // Use the minimum count in case the two vectors differ
+    size_t count = std::min(frequencies.size(), magnitudes.size());
+
+    // Calculate total magnitude
+    float totalMagnitude = 0.0f;
+    for (size_t i = 0; i < count; ++i) {
+        totalMagnitude += magnitudes[i];
+    }
+    if (totalMagnitude <= 0)
+        return result;
 
     // Blend colours from all frequencies based on their magnitude weights
     float r = 0.0f, g = 0.0f, b = 0.0f;
     float wavelengthSum = 0.0f;
     
-    for (size_t i = 0; i < frequencies.size(); ++i) {
+    for (size_t i = 0; i < count; ++i) {
         float weight = magnitudes[i] / totalMagnitude;
         float wavelength = frequencyToWavelength(frequencies[i]);
         
@@ -42,12 +52,16 @@ ColourMapper::ColourResult ColourMapper::frequenciesToColour(
 }
 
 float ColourMapper::frequencyToWavelength(float freq) {
-    if (freq <= 0) return 0;
+    if (freq <= 0)
+        return 0;
     
     constexpr float MIN_FREQ = 20.0f;
     constexpr float MAX_FREQ = 20000.0f;
     
-    float logFreq = std::log(std::max(freq, MIN_FREQ));
+    // Clamp the frequency within [MIN_FREQ, MAX_FREQ]
+    float clampedFreq = std::min(std::max(freq, MIN_FREQ), MAX_FREQ);
+
+    float logFreq = std::log(clampedFreq);
     float logMinFreq = std::log(MIN_FREQ);
     float logMaxFreq = std::log(MAX_FREQ);
     
@@ -58,7 +72,7 @@ float ColourMapper::frequencyToWavelength(float freq) {
 // Converts a wavelength (nm) to an RGB colour value
 // Based on mapping from: https://www.endolith.com/wordpress/2010/09/15/a-mapping-between-musical-notes-and-colors/
 void ColourMapper::wavelengthToRGB(float wavelength, float& r, float& g, float& b) {
-    // Return a default colour if wavelength is zero.
+    // Return a default colour if wavelength is zero
     if (wavelength == 0) {
         r = g = b = 0.1f;
         return;
@@ -92,7 +106,7 @@ void ColourMapper::wavelengthToRGB(float wavelength, float& r, float& g, float& 
         r = (153.0f + t * 102.0f) / 255.0f;
         g = (255.0f - t * 16.0f) / 255.0f;
         b = 0.0f;
-    } else if (wavelength >= 521 && wavelength <= 552) { // Chartreuse to line green
+    } else if (wavelength >= 521 && wavelength <= 552) { // Chartreuse to lime green
         float t = (wavelength - 521.0f) / (552.0f - 521.0f);
         r = (40.0f + t * 113.0f) / 255.0f;
         g = 1.0f;
@@ -133,7 +147,7 @@ void ColourMapper::wavelengthToRGB(float wavelength, float& r, float& g, float& 
         intensity = 0.3f + 0.7f * (wavelength - 380.0f) / (420.0f - 380.0f);
     }
 
-    // Apply gamma correction combined with the intensity
+    // Apply gamma correction combined with intensity
     r = std::pow(r * intensity, gamma);
     g = std::pow(g * intensity, gamma);
     b = std::pow(b * intensity, gamma);
