@@ -9,6 +9,8 @@ set(SRC_DIR "${CMAKE_CURRENT_SOURCE_DIR}/src")
 set(GLFW_DIR "${CMAKE_CURRENT_SOURCE_DIR}/vendor/glfw")
 set(PORTAUDIO_DIR "${CMAKE_CURRENT_SOURCE_DIR}/vendor/portaudio")
 
+option(BUILD_MACOS_BUNDLE "Build as macOS .app bundle" OFF)
+
 if(WIN32)
     if(CMAKE_BUILD_TYPE STREQUAL "Release")
         string(APPEND CMAKE_CXX_FLAGS_RELEASE " /O2 /GL")
@@ -76,6 +78,12 @@ endif()
 
 if(WIN32)
     add_executable(synesthesia WIN32 ${SOURCES})
+elseif(APPLE)
+    if(BUILD_MACOS_BUNDLE)
+        add_executable(synesthesia MACOSX_BUNDLE ${SOURCES})
+    else()
+        add_executable(synesthesia ${SOURCES}) 
+    endif()
 else()
     add_executable(synesthesia ${SOURCES})
 endif()
@@ -131,6 +139,32 @@ set_target_properties(synesthesia PROPERTIES
     RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}
 )
 
+if(APPLE AND BUILD_MACOS_BUNDLE)
+    configure_file(${CMAKE_CURRENT_SOURCE_DIR}/meta/Info.plist.in ${CMAKE_BINARY_DIR}/Info.plist)
+    configure_file(
+        ${CMAKE_CURRENT_SOURCE_DIR}/meta/entitlements.plist
+        ${CMAKE_BINARY_DIR}/entitlements.plist
+        COPYONLY
+    )
+
+    set(ICON_SRC "${CMAKE_CURRENT_SOURCE_DIR}/meta/icon/app.icns")
+    set(ICON_DEST "${CMAKE_BINARY_DIR}/synesthesia.app/Contents/Resources/app.icns")
+    add_custom_command(TARGET synesthesia POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E make_directory "${CMAKE_BINARY_DIR}/synesthesia.app/Contents/Resources"
+        COMMAND ${CMAKE_COMMAND} -E copy "${ICON_SRC}" "${ICON_DEST}"
+        COMMENT "Copying app icon to bundle resources"
+    )
+    set_target_properties(synesthesia PROPERTIES
+        MACOSX_BUNDLE_INFO_PLIST "${CMAKE_BINARY_DIR}/Info.plist"
+        MACOSX_BUNDLE_ICON_FILE "app.icns"
+        MACOSX_BUNDLE_BUNDLE_NAME "Synesthesia"
+        MACOSX_BUNDLE_BUNDLE_VERSION "1.0"
+        MACOSX_BUNDLE_COPYRIGHT "Copyright (C) 2025 Jack Gannon | MIT License"
+        MACOSX_BUNDLE_GUI_IDENTIFIER "com.jackgannon.Synesthesia"
+        RESOURCE "${ICON_SRC}"
+    )
+endif()
+
 if(WIN32 AND CMAKE_BUILD_TYPE STREQUAL "Release")
     install(TARGETS synesthesia
         RUNTIME DESTINATION bin
@@ -140,17 +174,7 @@ if(WIN32 AND CMAKE_BUILD_TYPE STREQUAL "Release")
         DESTINATION bin
     )
 elseif(APPLE)
-    option(BUILD_MACOS_APP "Build a macOS application bundle" OFF)
-    if(BUILD_MACOS_APP)
-        add_custom_target(app
-            COMMAND ${CMAKE_COMMAND} -E remove_directory ${CMAKE_BINARY_DIR}/synesthesia.app
-            COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/meta/appify.sh
-                -s ${CMAKE_BINARY_DIR}/synesthesia
-                -i ${CMAKE_CURRENT_SOURCE_DIR}/meta/icon/app.icns
-            DEPENDS synesthesia
-            COMMENT "Creating macOS app bundle..."
-        )
-    endif()
+    install(TARGETS synesthesia BUNDLE DESTINATION ".")
 else()
     install(TARGETS synesthesia
         RUNTIME DESTINATION bin

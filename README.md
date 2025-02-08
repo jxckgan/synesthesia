@@ -25,11 +25,39 @@ cmake --build .
 ./synesthesia
 ```
 
+If you're downloading the prebuilt binaries for macOS, you'll need to right-click, press open, and then navigate to System Preferences -> Privacy & Security, and confirm you want to open it; this is because Synesthesia binaries aren't codesigned with an Apple Developer Account 
+<details><summary><h3>Building an App Bundle on macOS</h3></summary>
+
+In order to build a macOS Application Bundle, we use the following flags (`-DBUILD_MACOS_BUNDLE`) to enable our app-building option:
+
+```sh
+cmake .. -DBUILD_MACOS_BUNDLE=ON
+cmake --build .
+```
+
+And your `.app` will be in the root of the build directory.
+
+</details>
+<details><summary><h3>Building an Executable on Windows</h3></summary>
+
+To build a standalone/portable Windows executable, we use the following flags (`-DCMAKE_BUILD_TYPE=Release`) to build:
+
+```sh
+cmake .. -DCMAKE_BUILD_TYPE=Release
+cmake --build . --config Release
+```
+
+Your executable will then be placed in the Release folder (placed at the root of your build directory).
+
+</details>
+
+
 ### Todo
 
-- [ ] Cross-platform support
+- [x] ~~Cross-platform support~~
 - [x] ~~Better/granular EQ control~~
 - [x] ~~Ability for visualisation of multiple frequency bands~~
+- [ ] Vulkan port for Linux
 - [ ] Generally more control over settings
 - [ ] DAW-integration
 
@@ -40,5 +68,8 @@ cmake --build .
 - Lightweight FFT possible w/ [KissFFT](https://github.com/mborgerding/kissfft)
 - macOS Application Building: [Appify/OSX App in Plain C](https://github.com/jimon/osx_app_in_plain_c)
 
-> **Note**:
+> **⚠️ Warning:**<br>
+> This application may display rapidly changing colors when multiple frequencies are played. If you have photosensitive epilepsy, I strongly advise against using this application.
+
+> **Note:**
 > This application is artistic in nature, and doesn't aim to replicate Synesthesia (Chromesthesia) or to be scientifically accurate.
