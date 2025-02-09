@@ -4,7 +4,10 @@
 #include <iostream>
 #include <stdexcept>
 
-AudioInput::AudioInput() : stream(nullptr), sampleRate(44100.0f) {
+AudioInput::AudioInput() 
+    : stream(nullptr)
+    , sampleRate(44100.0f)
+{
     PaError err = Pa_Initialize();
     if (err != paNoError) {
         throw std::runtime_error("PortAudio initialization failed: " + 
@@ -57,7 +60,7 @@ bool AudioInput::initStream(int deviceIndex) {
     inputParameters.suggestedLatency = deviceInfo->defaultLowInputLatency;
     inputParameters.hostApiSpecificStreamInfo = nullptr;
 
-    const PaError err = Pa_OpenStream(
+    PaError err = Pa_OpenStream(
         &stream,
         &inputParameters,
         nullptr,
@@ -78,7 +81,8 @@ bool AudioInput::initStream(int deviceIndex) {
         sampleRate = static_cast<float>(streamInfo->sampleRate);
     }
 
-    if (const PaError startErr = Pa_StartStream(stream); startErr != paNoError) {
+    PaError startErr = Pa_StartStream(stream);
+    if (startErr != paNoError) {
         std::cerr << "Failed to start stream: " << Pa_GetErrorText(startErr) << "\n";
         stopStream();
         return false;
@@ -122,10 +126,13 @@ int AudioInput::audioCallback(const void* input, void* output,
                               void* userData)
 {
     auto* audio = static_cast<AudioInput*>(userData);
-    const float* in = static_cast<const float*>(input);
 
-    std::vector<float> buffer(in, in + frameCount);
-    audio->fftProcessor.processBuffer(buffer, audio->sampleRate);
+    if (!input) {
+        return paContinue;
+    }
+
+    const float* inBuffer = static_cast<const float*>(input);
+    audio->fftProcessor.processBuffer(inBuffer, frameCount, audio->sampleRate);
 
     return paContinue;
 }

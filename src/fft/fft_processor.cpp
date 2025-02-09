@@ -1,12 +1,9 @@
 #include "fft_processor.h"
-
 #include <cmath>
 #include <numeric>
 #include <algorithm>
-#include <cassert>
-#include <chrono>
-#include <iostream>
 #include <stdexcept>
+#include <chrono>
 
 #ifndef M_PI
 #define M_PI 3.14159265358979323846
@@ -44,19 +41,19 @@ void FFTProcessor::setEQGains(float low, float mid, float high) {
     highGain = std::max(0.0f, high);
 }
 
-void FFTProcessor::applyWindow(const std::vector<float>& buffer) {
-    const size_t copySize = std::min(buffer.size(), static_cast<size_t>(FFT_SIZE));
+void FFTProcessor::applyWindow(const float* buffer, size_t numSamples) {
+    size_t copySize = std::min(numSamples, static_cast<size_t>(FFT_SIZE));
     std::fill(fft_in.begin(), fft_in.end(), 0.0f);
     for (size_t i = 0; i < copySize; ++i) {
         fft_in[i] = buffer[i] * hannWindow[i];
     }
 }
 
-void FFTProcessor::processBuffer(const std::vector<float>& buffer, float sampleRate) {
-    if (sampleRate <= 0.0f) return;
+void FFTProcessor::processBuffer(const float* buffer, size_t numSamples, float sampleRate) {
+    if (sampleRate <= 0.0f || !buffer) return;
     std::lock_guard<std::mutex> processingLock(processingMutex);
 
-    applyWindow(buffer);
+    applyWindow(buffer, numSamples);
     kiss_fftr(fft_cfg, fft_in.data(), fft_out.data());
 
     // Normalise FFT output
@@ -124,7 +121,6 @@ void FFTProcessor::findFrequencyPeaks(float sampleRate) {
         magnitudesBuffer[i] = magnitude * combinedGain;
     }
 
-    // Calculate noise floor
     float noiseFloor = calculateNoiseFloor(magnitudesBuffer);
 
     std::vector<FrequencyPeak> rawPeaks;
@@ -173,7 +169,6 @@ void FFTProcessor::findFrequencyPeaks(float sampleRate) {
 }
 
 bool FFTProcessor::isHarmonic(float testFreq, float baseFreq) const {
-    // Dynamic tolerance scales with base frequency
     float dynamicTolerance = 0.05f * (baseFreq / 250.0f);
     float ratio = testFreq / baseFreq;
     

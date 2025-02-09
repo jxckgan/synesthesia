@@ -22,7 +22,7 @@ public:
     FFTProcessor();
     ~FFTProcessor();
 
-    void processBuffer(const std::vector<float>& buffer, float sampleRate);
+    void processBuffer(const float* buffer, size_t numSamples, float sampleRate);
     std::vector<FrequencyPeak> getDominantFrequencies() const;
     std::vector<float> getMagnitudesBuffer() const;
     void reset();
@@ -49,7 +49,7 @@ private:
     mutable std::mutex gainsMutex;
     mutable std::mutex processingMutex;
 
-    void applyWindow(const std::vector<float>& buffer);
+    void applyWindow(const float* buffer, size_t numSamples);
     void findFrequencyPeaks(float sampleRate);
     float interpolateFrequency(int bin, float sampleRate) const;
     float calculateNoiseFloor(const std::vector<float>& magnitudes) const;

@@ -26,7 +26,6 @@ public:
 private:
     PaStream* stream;
     FFTProcessor fftProcessor;
-    std::mutex bufferMutex;
     float sampleRate;
     
     void stopStream();
