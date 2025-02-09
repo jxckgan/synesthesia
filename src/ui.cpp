@@ -1,6 +1,7 @@
 #include "ui.h"
 #include "colour_mapper.h"
 #include "fft_processor.h"
+#include "audio_input.h"
 #include <algorithm>
 #include <cmath>
 
@@ -32,10 +33,11 @@ void updateUI(AudioInput &audioInput,
         ImGui::Begin("Input Selection");
         if (!devices.empty()) {
             if (ImGui::Combo("##", &selectedDeviceIndex, deviceNames.data(), static_cast<int>(deviceNames.size()))) {
-                if (selectedDeviceIndex >= 0 && selectedDeviceIndex < devices.size()) {
+                if (selectedDeviceIndex >= 0 && static_cast<size_t>(selectedDeviceIndex) < devices.size()) {
                     if (!audioInput.initStream(devices[selectedDeviceIndex].paIndex)) {
                         streamError = true;
-                    } else {
+                    }
+                    else {
                         streamError = false;
                     }
                 }
@@ -43,7 +45,8 @@ void updateUI(AudioInput &audioInput,
             if (streamError) {
                 ImGui::TextColored(ImVec4(1, 0, 0, 1), "Error opening device!");
             }
-        } else {
+        }
+        else {
             ImGui::Text("No audio input devices found.");
         }
         ImGui::End();
@@ -51,7 +54,7 @@ void updateUI(AudioInput &audioInput,
 
     // Process audio data and update visuals when a device is selected
     if (selectedDeviceIndex >= 0) {
-        auto& peaks = audioInput.getFrequencyPeaks();
+        auto peaks = audioInput.getFrequencyPeaks();
         std::vector<float> freqs, mags;
         for (const auto &peak : peaks) {
             freqs.push_back(peak.frequency);
@@ -88,25 +91,27 @@ void updateUI(AudioInput &audioInput,
             if (!peaks.empty()) {
                 ImGui::Text("Dominant: %.1f Hz", peaks[0].frequency);
                 ImGui::Text("Wavelength: %.1f nm", colourResult.dominantWavelength);
-                for (size_t i = 0; i < peaks.size(); ++i) {
+                for (size_t i = 0; i < peaks.size(); ++i)
+                {
                     ImGui::Text("Peak %d: %.1f Hz", static_cast<int>(i) + 1, peaks[i].frequency);
                 }
-            } else {
+            }
+            else {
                 ImGui::Text("No significant frequencies");
             }
             ImGui::Text("RGB: (%.2f, %.2f, %.2f)", clear_color[0], clear_color[1], clear_color[2]);
             ImGui::End();
         }
 
-        // EQ Controls
+        // EQ controls
         static float lowGain = 1.0f;
         static float midGain = 1.0f;
         static float highGain = 1.0f;
         static bool showSpectrumAnalyser = true;
-        static std::vector<float> smoothedMagnitudes(FFTProcessor::FFT_SIZE / 2, 0.0f);
+        static std::vector<float> smoothedMagnitudes(FFTProcessor::FFT_SIZE / 2 + 1, 0.0f);
         static float smoothingFactor = 0.2f;
 
-        // EQ Window
+        // EQ window
         if (showUI) {
             ImVec2 displaySize = io.DisplaySize;
             ImVec2 windowSize = ImVec2(375, 127);
@@ -128,7 +133,7 @@ void updateUI(AudioInput &audioInput,
             ImGui::End();
         }
 
-        // Update FFT processor w/ current EQ settings
+        // Update the FFT processor w/ current EQ settings
         audioInput.getFFTProcessor().setEQGains(lowGain, midGain, highGain);
 
         // Spectrum Analyser window
@@ -137,7 +142,11 @@ void updateUI(AudioInput &audioInput,
             ImGui::Begin("Spectrum Analyser", &showSpectrumAnalyser);
 
             const auto& magnitudes = audioInput.getFFTProcessor().getMagnitudesBuffer();
-            int count = FFTProcessor::FFT_SIZE / 2;
+
+            if (smoothedMagnitudes.size() != magnitudes.size()) {
+                smoothedMagnitudes.assign(magnitudes.size(), 0.0f);
+            }
+            const int count = static_cast<int>(magnitudes.size());
 
             // Apply smoothing using EMA
             for (int i = 0; i < count; ++i) {

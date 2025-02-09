@@ -2,13 +2,16 @@
 #include <algorithm>
 #include <cstdlib>
 #include <iostream>
+#include <stdexcept>
 
-AudioInput::AudioInput() : stream(nullptr), sampleRate(44100.0f) {
+AudioInput::AudioInput() 
+    : stream(nullptr), sampleRate(44100.0f)
+{
     PaError err = Pa_Initialize();
     if (err != paNoError) {
-        std::cerr << "PortAudio initialization failed: " 
-                  << Pa_GetErrorText(err) << std::endl;
-        std::exit(1);
+        std::string errMsg = "PortAudio initialization failed: ";
+        errMsg += Pa_GetErrorText(err);
+        throw std::runtime_error(errMsg);
     }
 }
 
@@ -20,17 +23,18 @@ AudioInput::~AudioInput() {
 // Retrieves a list of available input devices
 std::vector<AudioInput::DeviceInfo> AudioInput::getInputDevices() {
     std::vector<DeviceInfo> devices;
-
-    if (Pa_GetDeviceCount() < 0) {
+    
+    int deviceCount = Pa_GetDeviceCount();
+    if (deviceCount < 0) {
         std::cerr << "Failed to get device count: " 
-                  << Pa_GetErrorText(Pa_GetDeviceCount()) << std::endl;
+                  << Pa_GetErrorText(deviceCount) << std::endl;
         return devices;
     }
-
-    for (int i = 0; i < Pa_GetDeviceCount(); ++i) {
+    
+    for (int i = 0; i < deviceCount; ++i) {
         const PaDeviceInfo* deviceInfo = Pa_GetDeviceInfo(i);
         if (deviceInfo && deviceInfo->maxInputChannels > 0) {
-            devices.emplace_back(DeviceInfo{deviceInfo->name, i});
+            devices.emplace_back(DeviceInfo{ deviceInfo->name, i });
         }
     }
     return devices;
@@ -54,10 +58,14 @@ bool AudioInput::initStream(int deviceIndex) {
     inputParameters.hostApiSpecificStreamInfo = nullptr;
 
     PaError err = Pa_OpenStream(
-        &stream, &inputParameters, nullptr, 
-        deviceInfo->defaultSampleRate, 
-        FFTProcessor::FFT_SIZE, paClipOff, 
-        audioCallback, this
+        &stream,
+        &inputParameters,
+        nullptr,
+        deviceInfo->defaultSampleRate,
+        FFTProcessor::FFT_SIZE,
+        paClipOff,
+        audioCallback,
+        this
     );
 
     if (err != paNoError) {
@@ -84,10 +92,10 @@ bool AudioInput::initStream(int deviceIndex) {
 
 // Maps the current dominant frequency to a colour
 void AudioInput::getColourForCurrentFrequency(float& r, float& g, float& b, float& freq, float& wavelength) {
-    const auto& peaks = fftProcessor.getDominantFrequencies();
+    std::vector<FFTProcessor::FrequencyPeak> peaks = fftProcessor.getDominantFrequencies();
     std::vector<float> freqs, mags;
 
-    for (const auto& peak : peaks) {
+    for (const auto &peak : peaks) {
         freqs.push_back(peak.frequency);
         mags.push_back(peak.magnitude);
     }
@@ -96,7 +104,7 @@ void AudioInput::getColourForCurrentFrequency(float& r, float& g, float& b, floa
     r = colourResult.r;
     g = colourResult.g;
     b = colourResult.b;
-    freq = !peaks.empty() ? peaks[0].frequency : 0.0f;
+    freq = (!peaks.empty()) ? peaks[0].frequency : 0.0f;
     wavelength = colourResult.dominantWavelength;
 }
 
@@ -110,25 +118,22 @@ void AudioInput::stopStream() {
 }
 
 // Processes incoming audio data
-int AudioInput::audioCallback(const void* input, void*, 
+int AudioInput::audioCallback(const void* input, void* output,
                               unsigned long frameCount,
-                              const PaStreamCallbackTimeInfo*, 
-                              PaStreamCallbackFlags, 
-                              void* userData) {
+                              const PaStreamCallbackTimeInfo* timeInfo,
+                              PaStreamCallbackFlags statusFlags,
+                              void* userData)
+{
     auto* audio = static_cast<AudioInput*>(userData);
-    const auto* in = static_cast<const float*>(input);
+    const float* in = static_cast<const float*>(input);
 
     std::vector<float> buffer(in, in + frameCount);
-
-    {
-        std::lock_guard<std::mutex> lock(audio->bufferMutex);
-        audio->fftProcessor.processBuffer(buffer, audio->sampleRate);
-    }
+    audio->fftProcessor.processBuffer(buffer, audio->sampleRate);
 
     return paContinue;
 }
 
 // Returns the current list of frequency peaks
-const std::vector<FFTProcessor::FrequencyPeak>& AudioInput::getFrequencyPeaks() const {
+std::vector<FFTProcessor::FrequencyPeak> AudioInput::getFrequencyPeaks() const {
     return fftProcessor.getDominantFrequencies();
 }

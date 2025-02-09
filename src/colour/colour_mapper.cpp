@@ -8,7 +8,7 @@
 ColourMapper::ColourResult ColourMapper::frequenciesToColour(
     const std::vector<float>& frequencies, const std::vector<float>& magnitudes)
 {
-    // Default result if no valid input is provided
+    // Default result
     ColourResult result { 0.1f, 0.1f, 0.1f, 0.0f };
     if (frequencies.empty() || magnitudes.empty())
         return result;
@@ -17,21 +17,18 @@ ColourMapper::ColourResult ColourMapper::frequenciesToColour(
     size_t count = std::min(frequencies.size(), magnitudes.size());
 
     // Calculate total magnitude
-    float totalMagnitude = 0.0f;
-    for (size_t i = 0; i < count; ++i) {
-        totalMagnitude += magnitudes[i];
-    }
-    if (totalMagnitude <= 0)
+    float totalMagnitude = std::accumulate(magnitudes.begin(), magnitudes.begin() + count, 0.0f);
+    if (totalMagnitude <= 0.0f)
         return result;
 
-    // Blend colours from all frequencies based on their magnitude weights
     float r = 0.0f, g = 0.0f, b = 0.0f;
     float wavelengthSum = 0.0f;
     
+    // Blend colours from all frequencies based on their magnitude weights
     for (size_t i = 0; i < count; ++i) {
         float weight = magnitudes[i] / totalMagnitude;
         float wavelength = frequencyToWavelength(frequencies[i]);
-        
+
         float cr, cg, cb;
         wavelengthToRGB(wavelength, cr, cg, cb);
         
@@ -59,9 +56,8 @@ float ColourMapper::frequencyToWavelength(float freq) {
     constexpr float MAX_FREQ = 20000.0f;
     
     // Clamp the frequency within [MIN_FREQ, MAX_FREQ]
-    float clampedFreq = std::min(std::max(freq, MIN_FREQ), MAX_FREQ);
-
-    float logFreq = std::log(clampedFreq);
+    float clampedFreq = std::clamp(freq, MIN_FREQ, MAX_FREQ);
+    float logFreq    = std::log(clampedFreq);
     float logMinFreq = std::log(MIN_FREQ);
     float logMaxFreq = std::log(MAX_FREQ);
     
@@ -82,56 +78,56 @@ void ColourMapper::wavelengthToRGB(float wavelength, float& r, float& g, float& 
     float intensity = 1.0f;
 
     // Mapping wavelength ranges to RGB values
-    if (wavelength >= 696 && wavelength <= 737) { // Dark red to red
-        float t = (wavelength - 696) / (737.0f - 696.0f);
+    if (wavelength >= 696.0f && wavelength <= 737.0f) { // Dark red to red
+        float t = (wavelength - 696.0f) / (737.0f - 696.0f);
         r = (255.0f - t * 81.0f) / 255.0f;
         g = 0.0f;
         b = 0.0f;
-    } else if (wavelength >= 657 && wavelength <= 696) { // Pure red
+    } else if (wavelength >= 657.0f && wavelength <= 696.0f) { // Pure red
         r = 1.0f;
         g = 0.0f;
         b = 0.0f;
-    } else if (wavelength >= 620 && wavelength <= 657) { // Red to orange-red
+    } else if (wavelength >= 620.0f && wavelength <= 657.0f) { // Red to orange-red
         float t = (wavelength - 620.0f) / (657.0f - 620.0f);
         r = 1.0f;
         g = (102.0f - t * 102.0f) / 255.0f;
         b = 0.0f;
-    } else if (wavelength >= 585 && wavelength <= 620) { // Orange-red to yellow
+    } else if (wavelength >= 585.0f && wavelength <= 620.0f) { // Orange-red to yellow
         float t = (wavelength - 585.0f) / (620.0f - 585.0f);
         r = 1.0f;
         g = (239.0f - t * 137.0f) / 255.0f;
         b = 0.0f;
-    } else if (wavelength >= 552 && wavelength <= 585) { // Yellow to chartreuse
+    } else if (wavelength >= 552.0f && wavelength <= 585.0f) { // Yellow to chartreuse
         float t = (wavelength - 552.0f) / (585.0f - 552.0f);
         r = (153.0f + t * 102.0f) / 255.0f;
         g = (255.0f - t * 16.0f) / 255.0f;
         b = 0.0f;
-    } else if (wavelength >= 521 && wavelength <= 552) { // Chartreuse to lime green
+    } else if (wavelength >= 521.0f && wavelength <= 552.0f) { // Chartreuse to lime green
         float t = (wavelength - 521.0f) / (552.0f - 521.0f);
         r = (40.0f + t * 113.0f) / 255.0f;
         g = 1.0f;
         b = 0.0f;
-    } else if (wavelength >= 492 && wavelength <= 521) { // Green to aqua
+    } else if (wavelength >= 492.0f && wavelength <= 521.0f) { // Green to aqua
         float t = (wavelength - 492.0f) / (521.0f - 492.0f);
         r = t * 40.0f / 255.0f;
         g = 1.0f;
         b = t * 242.0f / 255.0f;
-    } else if (wavelength >= 464 && wavelength <= 492) { // Aqua to sky blue
+    } else if (wavelength >= 464.0f && wavelength <= 492.0f) { // Aqua to sky blue
         float t = (wavelength - 464.0f) / (492.0f - 464.0f);
+        r = 0.0f;
         g = (122.0f + t * 133.0f) / 255.0f;
         b = (255.0f - t * 13.0f) / 255.0f;
-        r = 0.0f;
-    } else if (wavelength >= 438 && wavelength <= 464) { // Sky blue to blue
+    } else if (wavelength >= 438.0f && wavelength <= 464.0f) { // Sky blue to blue
         float t = (wavelength - 438.0f) / (464.0f - 438.0f);
         r = (5.0f - t * 5.0f) / 255.0f;
         g = (t * 122.0f) / 255.0f;
         b = 1.0f;
-    } else if (wavelength >= 414 && wavelength <= 438) { // Blue to darker blue
+    } else if (wavelength >= 414.0f && wavelength <= 438.0f) { // Blue to darker blue
         float t = (wavelength - 414.0f) / (438.0f - 414.0f);
         r = (5.0f + t * 66.0f) / 255.0f;
         b = (237.0f + t * 18.0f) / 255.0f;
         g = 0.0f;
-    } else if (wavelength >= 390 && wavelength <= 414) { // Darker blue to indigo
+    } else if (wavelength >= 390.0f && wavelength <= 414.0f) { // Darker blue to indigo
         float t = (wavelength - 390.0f) / (414.0f - 390.0f);
         r = (71.0f + t * 28.0f) / 255.0f;
         b = (237.0f - t * 59.0f) / 255.0f;
@@ -141,9 +137,9 @@ void ColourMapper::wavelengthToRGB(float wavelength, float& r, float& g, float& 
     }
 
     // Adjust intensity for wavelengths outside the optimal visible range
-    if (wavelength > 700) {
+    if (wavelength > 700.0f) {
         intensity = 0.3f + 0.7f * (750.0f - wavelength) / (750.0f - 700.0f);
-    } else if (wavelength < 420) {
+    } else if (wavelength < 420.0f) {
         intensity = 0.3f + 0.7f * (wavelength - 380.0f) / (420.0f - 380.0f);
     }
 

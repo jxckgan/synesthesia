@@ -3,6 +3,7 @@
 #include <vector>
 #include <mutex>
 #include <chrono>
+#include <stdexcept>
 #include "kiss_fftr.h"
 
 class FFTProcessor {
@@ -22,21 +23,22 @@ public:
     ~FFTProcessor();
 
     void processBuffer(const std::vector<float>& buffer, float sampleRate);
-    const std::vector<FrequencyPeak>& getDominantFrequencies() const;
+    std::vector<FrequencyPeak> getDominantFrequencies() const;
+    std::vector<float> getMagnitudesBuffer() const;
     void reset();
     void setEQGains(float low, float mid, float high);
-    const std::vector<float>& getMagnitudesBuffer() const;
 
 private:
     kiss_fftr_cfg fft_cfg;
     std::vector<float> fft_in;
     std::vector<kiss_fft_cpx> fft_out;
-    std::vector<FrequencyPeak> currentPeaks;
-    
+
+    std::vector<FrequencyPeak> currentPeaks;    
     mutable std::mutex peaksMutex;
+
     std::vector<float> hannWindow;
     std::vector<float> magnitudesBuffer;
-    
+
     std::chrono::steady_clock::time_point lastValidPeakTime;
     static constexpr std::chrono::milliseconds PEAK_RETENTION_TIME{100};
     std::vector<FrequencyPeak> retainedPeaks;
@@ -45,6 +47,7 @@ private:
     float midGain;
     float highGain;
     mutable std::mutex gainsMutex;
+    mutable std::mutex processingMutex;
 
     void applyWindow(const std::vector<float>& buffer);
     void findFrequencyPeaks(float sampleRate);

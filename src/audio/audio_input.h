@@ -20,7 +20,7 @@ public:
     std::vector<DeviceInfo> getInputDevices();
     bool initStream(int deviceIndex);
     void getColourForCurrentFrequency(float& r, float& g, float& b, float& freq, float& wavelength);
-    const std::vector<FFTProcessor::FrequencyPeak>& getFrequencyPeaks() const;
+    std::vector<FFTProcessor::FrequencyPeak> getFrequencyPeaks() const;
     FFTProcessor& getFFTProcessor() { return fftProcessor; }
 
 private:
@@ -28,6 +28,7 @@ private:
     FFTProcessor fftProcessor;
     std::mutex bufferMutex;
     float sampleRate;
+    
     void stopStream();
     static int audioCallback(const void* input, void* output,
                              unsigned long frameCount,
