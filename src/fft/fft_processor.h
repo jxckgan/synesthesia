@@ -11,7 +11,7 @@ public:
     static constexpr int FFT_SIZE = 2048;
     static constexpr float MIN_FREQ = 20.0f;
     static constexpr float MAX_FREQ = 20000.0f;
-    static constexpr float MAX_HARMONIC = 8;
+    static constexpr int MAX_HARMONIC = 8;
     static constexpr int MAX_PEAKS = 3;
 
     struct FrequencyPeak {

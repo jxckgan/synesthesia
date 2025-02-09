@@ -77,6 +77,7 @@ std::vector<FFTProcessor::FrequencyPeak> FFTProcessor::getDominantFrequencies() 
 }
 
 std::vector<float> FFTProcessor::getMagnitudesBuffer() const {
+    std::lock_guard<std::mutex> lock(peaksMutex);
     return magnitudesBuffer;
 }
 
