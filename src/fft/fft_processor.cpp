@@ -94,31 +94,54 @@ void FFTProcessor::findFrequencyPeaks(float sampleRate) {
 
     const size_t binCount = fft_out.size();
     // Calculate magnitudes with EQ applied
+    float maxMagnitude = 0.0f;
+    
+    // First pass
     for (size_t i = 1; i < binCount - 1; ++i) {
         float freq = (static_cast<float>(i) * sampleRate) / FFT_SIZE;
         if (freq < MIN_FREQ || freq > MAX_FREQ) continue;
 
         float magnitude = std::hypot(fft_out[i].r, fft_out[i].i);
+        maxMagnitude = std::max(maxMagnitude, magnitude);
+    }
 
-        // Frequency band splitting
+    // Prevent division by zero & establish normalisation factor
+    const float normalizationFactor = (maxMagnitude > 1e-6f) ? 1.0f / maxMagnitude : 1.0f;
+
+    // Second pass
+    for (size_t i = 1; i < binCount - 1; ++i) {
+        float freq = (static_cast<float>(i) * sampleRate) / FFT_SIZE;
+        if (freq < MIN_FREQ || freq > MAX_FREQ) continue;
+
+        float magnitude = std::hypot(fft_out[i].r, fft_out[i].i) * normalizationFactor;
+        
+        // Ensure magnitude is finite and in reasonable range
+        if (!std::isfinite(magnitude)) {
+            magnitude = 0.0f;
+        }
+
+        // Frequency band splitting with clamped gains
         float lowResponse = (freq <= 200.0f) ? 1.0f :
                             (freq < 250.0f ? (250.0f - freq) / 50.0f : 0.0f);
         float highResponse = (freq >= 2000.0f) ? 1.0f :
-                             (freq > 1900.0f ? (freq - 1900.0f) / 100.0f : 0.0f);
+                            (freq > 1900.0f ? (freq - 1900.0f) / 100.0f : 0.0f);
         float midResponse = (freq >= 250.0f && freq <= 1900.0f) ? 1.0f :
-                           (freq > 200.0f && freq < 250.0f ? (freq - 200.0f) / 50.0f :
-                           (freq > 1900.0f && freq < 2000.0f ? (2000.0f - freq) / 100.0f : 0.0f));
+                        (freq > 200.0f && freq < 250.0f ? (freq - 200.0f) / 50.0f :
+                        (freq > 1900.0f && freq < 2000.0f ? (2000.0f - freq) / 100.0f : 0.0f));
 
         // EQ balance
         lowResponse *= 0.4f;
         midResponse *= 0.5f;
         highResponse *= 1.2f;
 
-        float combinedGain = (lowResponse * currentLowGain) +
-                             (midResponse * currentMidGain) +
-                             (highResponse * currentHighGain);
+        // Compute the combined gain
+        float combinedGain = (lowResponse * std::clamp(currentLowGain, 0.0f, 4.0f)) +
+                            (midResponse * std::clamp(currentMidGain, 0.0f, 4.0f)) +
+                            (highResponse * std::clamp(currentHighGain, 0.0f, 4.0f));
 
-        magnitudesBuffer[i] = magnitude * combinedGain;
+        combinedGain = std::clamp(combinedGain, 0.0f, 4.0f);
+        magnitudesBuffer[i] = std::clamp(magnitude * combinedGain, 0.0f, 1.0f);
+
     }
 
     float noiseFloor = calculateNoiseFloor(magnitudesBuffer);

@@ -6,9 +6,9 @@
 #include <cmath>
 
 void updateUI(AudioInput &audioInput, 
-              const std::vector<AudioInput::DeviceInfo>& devices, 
-              float* clear_color, 
-              ImGuiIO &io)
+                const std::vector<AudioInput::DeviceInfo>& devices, 
+                float* clear_color, 
+                ImGuiIO &io)
 {
     // Toggle UI On/Off with 'H' key
     static bool showUI = true;
@@ -62,11 +62,36 @@ void updateUI(AudioInput &audioInput,
         }
 
         auto colourResult = ColourMapper::frequenciesToColour(freqs, mags);
-        float deltaTime = io.DeltaTime;
-        const float SMOOTHING = std::min(1.0f, deltaTime * 5.5f);
-        clear_color[0] = clear_color[0] * (1.0f - SMOOTHING) + colourResult.r * SMOOTHING;
-        clear_color[1] = clear_color[1] * (1.0f - SMOOTHING) + colourResult.g * SMOOTHING;
-        clear_color[2] = clear_color[2] * (1.0f - SMOOTHING) + colourResult.b * SMOOTHING;
+        
+        // Check if current colours are valid
+        bool currentValid = std::isfinite(clear_color[0]) && 
+                          std::isfinite(clear_color[1]) && 
+                          std::isfinite(clear_color[2]);
+        
+        // Check if new colours are valid
+        bool newValid = std::isfinite(colourResult.r) && 
+                       std::isfinite(colourResult.g) && 
+                       std::isfinite(colourResult.b);
+
+        // Reset to default if current colours are invalid
+        if (!currentValid) {
+            clear_color[0] = clear_color[1] = clear_color[2] = 0.1f;
+        }
+
+        // Only apply new colours if they're valid
+        if (newValid) {
+            float deltaTime = io.DeltaTime;
+            const float SMOOTHING = std::min(1.0f, deltaTime * 5.5f);
+            
+            // Apply smoothing with clamping
+            for (int i = 0; i < 3; i++) {
+                float newValue = clear_color[i] * (1.0f - SMOOTHING);
+                float colorValue = (i == 0) ? colourResult.r : 
+                                 (i == 1) ? colourResult.g : colourResult.b;
+                newValue += colorValue * SMOOTHING;
+                clear_color[i] = std::clamp(newValue, 0.0f, 1.0f);
+            }
+        }
 
         // Show/Hide Text
         if (showUI) {
