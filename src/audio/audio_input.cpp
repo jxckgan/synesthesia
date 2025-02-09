@@ -4,14 +4,11 @@
 #include <iostream>
 #include <stdexcept>
 
-AudioInput::AudioInput() 
-    : stream(nullptr), sampleRate(44100.0f)
-{
+AudioInput::AudioInput() : stream(nullptr), sampleRate(44100.0f) {
     PaError err = Pa_Initialize();
     if (err != paNoError) {
-        std::string errMsg = "PortAudio initialization failed: ";
-        errMsg += Pa_GetErrorText(err);
-        throw std::runtime_error(errMsg);
+        throw std::runtime_error("PortAudio initialization failed: " + 
+            std::string(Pa_GetErrorText(err)));
     }
 }
 
@@ -23,20 +20,23 @@ AudioInput::~AudioInput() {
 // Retrieves a list of available input devices
 std::vector<AudioInput::DeviceInfo> AudioInput::getInputDevices() {
     std::vector<DeviceInfo> devices;
+    const int deviceCount = Pa_GetDeviceCount();
     
-    int deviceCount = Pa_GetDeviceCount();
     if (deviceCount < 0) {
-        std::cerr << "Failed to get device count: " 
-                  << Pa_GetErrorText(deviceCount) << std::endl;
-        return devices;
+        throw std::runtime_error("Failed to get device count: " + 
+            std::string(Pa_GetErrorText(deviceCount)));
     }
-    
+
+    devices.reserve(static_cast<size_t>(deviceCount));
     for (int i = 0; i < deviceCount; ++i) {
-        const PaDeviceInfo* deviceInfo = Pa_GetDeviceInfo(i);
-        if (deviceInfo && deviceInfo->maxInputChannels > 0) {
-            devices.emplace_back(DeviceInfo{ deviceInfo->name, i });
+        if (const PaDeviceInfo* deviceInfo = Pa_GetDeviceInfo(i)) {
+            if (deviceInfo->maxInputChannels > 0) {
+                devices.emplace_back(DeviceInfo{deviceInfo->name, i});
+            }
+        } else {
+            std::cerr << "Warning: Failed to get device info for device index " << i << "\n";
         }
-    }
+    }    
     return devices;
 }
 
@@ -45,8 +45,8 @@ bool AudioInput::initStream(int deviceIndex) {
     stopStream();
 
     const PaDeviceInfo* deviceInfo = Pa_GetDeviceInfo(deviceIndex);
-    if (!deviceInfo) {
-        std::cerr << "Error: Device not found!" << std::endl;
+    if (!deviceInfo || deviceInfo->maxInputChannels < 1) {
+        std::cerr << "Invalid audio device: " << deviceIndex << "\n";
         return false;
     }
 
@@ -57,7 +57,7 @@ bool AudioInput::initStream(int deviceIndex) {
     inputParameters.suggestedLatency = deviceInfo->defaultLowInputLatency;
     inputParameters.hostApiSpecificStreamInfo = nullptr;
 
-    PaError err = Pa_OpenStream(
+    const PaError err = Pa_OpenStream(
         &stream,
         &inputParameters,
         nullptr,
@@ -69,8 +69,7 @@ bool AudioInput::initStream(int deviceIndex) {
     );
 
     if (err != paNoError) {
-        std::cerr << "Failed to open audio stream: " 
-                  << Pa_GetErrorText(err) << std::endl;
+        std::cerr << "Failed to open audio stream: " << Pa_GetErrorText(err) << "\n";
         stream = nullptr;
         return false;
     }
@@ -79,10 +78,8 @@ bool AudioInput::initStream(int deviceIndex) {
         sampleRate = static_cast<float>(streamInfo->sampleRate);
     }
 
-    err = Pa_StartStream(stream);
-    if (err != paNoError) {
-        std::cerr << "Failed to start audio stream: " 
-                  << Pa_GetErrorText(err) << std::endl;
+    if (const PaError startErr = Pa_StartStream(stream); startErr != paNoError) {
+        std::cerr << "Failed to start stream: " << Pa_GetErrorText(startErr) << "\n";
         stopStream();
         return false;
     }
