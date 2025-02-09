@@ -13,8 +13,11 @@ public:
 
     static constexpr float MIN_WAVELENGTH = 380.0f;
     static constexpr float MAX_WAVELENGTH = 750.0f;
+    static constexpr float MIN_FREQ = 20.0f;
+    static constexpr float MAX_FREQ = 20000.0f;
+    
     static ColourResult frequenciesToColour(const std::vector<float>& frequencies, 
-                                              const std::vector<float>& magnitudes);
+                                          const std::vector<float>& magnitudes);
     
 private:
     static float frequencyToWavelength(float freq);
