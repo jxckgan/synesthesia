@@ -26,6 +26,11 @@ void updateUI(AudioInput &audioInput,
         deviceNames.push_back(dev.name.c_str());
     }
 
+    // Colour smoothing
+    float deltaTime = io.DeltaTime;
+    static float colourSmoothingSpeed = 5.5f;
+    const float SMOOTHING = std::min(1.0f, deltaTime * colourSmoothingSpeed);
+
     // Create a window for audio input device selection
     if (showUI) {
         ImGui::SetNextWindowPos(ImVec2(15, 15), ImGuiCond_Always);
@@ -80,8 +85,6 @@ void updateUI(AudioInput &audioInput,
 
         // Only apply new colours if they're valid
         if (newValid) {
-            float deltaTime = io.DeltaTime;
-            const float SMOOTHING = std::min(1.0f, deltaTime * 5.5f);
             
             // Apply smoothing with clamping
             for (int i = 0; i < 3; i++) {
@@ -110,7 +113,7 @@ void updateUI(AudioInput &audioInput,
 
         // Display frequency and colour information
         if (showUI) {
-            ImGui::SetNextWindowPos(ImVec2(15, 85), ImGuiCond_Always);
+            ImGui::SetNextWindowPos(ImVec2(15, 78), ImGuiCond_Always);
             ImGui::SetNextWindowSize(ImVec2(200, 140), ImGuiCond_Always);
             ImGui::Begin("Frequency Info");
             if (!peaks.empty()) {
@@ -128,13 +131,30 @@ void updateUI(AudioInput &audioInput,
             ImGui::End();
         }
 
+        // Colour Settings
+        static std::vector<float> smoothedMagnitudes(FFTProcessor::FFT_SIZE / 2 + 1, 0.0f);
+        static float smoothingFactor = 0.2f;
+
+        if (showUI) {
+            ImVec2 displaySize = io.DisplaySize;
+            ImVec2 windowSize = ImVec2(250, 80);
+            ImGui::SetNextWindowPos(ImVec2(15, displaySize.y - windowSize.y - 150), ImGuiCond_Always);
+            ImGui::SetNextWindowSize(windowSize, ImGuiCond_Always);
+            ImGui::Begin("Colour Settings");
+            
+            ImGui::SliderFloat("Smoothing", &colourSmoothingSpeed, 0.1f, 20.0f, "%.1f");
+            if (ImGui::Button("Reset")) {
+                colourSmoothingSpeed = 5.5f;
+            }
+            
+            ImGui::End();
+        }
+
         // EQ controls
         static float lowGain = 1.0f;
         static float midGain = 1.0f;
         static float highGain = 1.0f;
         static bool showSpectrumAnalyser = true;
-        static std::vector<float> smoothedMagnitudes(FFTProcessor::FFT_SIZE / 2 + 1, 0.0f);
-        static float smoothingFactor = 0.2f;
 
         // EQ window
         if (showUI) {
