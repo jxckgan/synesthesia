@@ -13,12 +13,13 @@ public:
     static constexpr float MAX_FREQ = 20000.0f;
     static constexpr int MAX_HARMONIC = 8;
     static constexpr int MAX_PEAKS = 3;
+    float getCurrentLoudness() const;
 
     struct FrequencyPeak {
         float frequency;
         float magnitude;
     };
-
+    
     FFTProcessor();
     ~FFTProcessor();
 
@@ -48,6 +49,9 @@ private:
     float highGain;
     mutable std::mutex gainsMutex;
     mutable std::mutex processingMutex;
+
+    float currentLoudness;
+    static constexpr float LOUDNESS_SMOOTHING = 0.2f;
 
     void applyWindow(const float* buffer, size_t numSamples);
     void findFrequencyPeaks(float sampleRate);

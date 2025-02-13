@@ -31,6 +31,8 @@ void updateUI(AudioInput &audioInput,
     static float colourSmoothingSpeed = 5.5f;
     const float SMOOTHING = std::min(1.0f, deltaTime * colourSmoothingSpeed);
 
+    static bool dynamicGammaEnabled = false;
+
     // Create a window for audio input device selection
     if (showUI) {
         ImGui::SetNextWindowPos(ImVec2(15, 15), ImGuiCond_Always);
@@ -57,7 +59,7 @@ void updateUI(AudioInput &audioInput,
         ImGui::End();
     }
 
-    // Process audio data and update visuals when a device is selected
+    // Process audio data and updates visuals when a device is selected
     if (selectedDeviceIndex >= 0) {
         auto peaks = audioInput.getFrequencyPeaks();
         std::vector<float> freqs, mags;
@@ -66,26 +68,72 @@ void updateUI(AudioInput &audioInput,
             mags.push_back(peak.magnitude);
         }
 
-        auto colourResult = ColourMapper::frequenciesToColour(freqs, mags);
+        // Calculate dynamic gamma (based on loudness)
+        float gamma = 0.8f;
+        float whiteMix = 0.0f;
+
+        if (dynamicGammaEnabled) {
+            static float previousLoudness = 0.0f;
+            static float transientIntensity = 0.0f;
+            static float smoothedLoudness = 0.0f;
+            constexpr float smoothingFactor = 0.9f;
+            constexpr float transientDecay = 0.92f;
+            constexpr float transientSensitivity = 4.0f;
+            float rawLoudness = audioInput.getFFTProcessor().getCurrentLoudness();
         
-        // Check if current colours are valid
+            // Apply a simple low-pass filter to smooth out the loudness
+            smoothedLoudness = (smoothingFactor * smoothedLoudness) + ((1.0f - smoothingFactor) * rawLoudness);
+            float deltaLoudness = smoothedLoudness - previousLoudness;
+            previousLoudness = smoothedLoudness;
+            
+            // Only consider positive spikes
+            float transientDelta = std::max(deltaLoudness, 0.0f);
+            transientIntensity = std::clamp(
+                (transientIntensity * transientDecay) + (transientDelta * transientSensitivity),
+                0.0f, 1.0f
+            );
+        
+            // Gamma calculation based on transient intensity
+            constexpr float baseGamma = 1.5f;
+            constexpr float minGamma = 0.15f;
+            float gammaRange = baseGamma - minGamma;
+            
+            float normalisedTransient = std::pow(transientIntensity, 0.75f);
+            gamma = baseGamma - (gammaRange * normalisedTransient);
+            gamma = std::clamp(gamma, minGamma, baseGamma);
+
+            float whiteIntensity = std::pow(transientIntensity, 1.5f);
+            whiteMix = std::clamp(whiteIntensity * 2.5f, 0.0f, 0.85f);
+            if (transientIntensity > 0.9f) {
+                whiteMix = std::clamp(whiteMix * 1.5f, 0.0f, 1.0f);
+            }
+        }        
+
+        auto colourResult = ColourMapper::frequenciesToColour(freqs, mags, gamma);
+
+        // Blend color
+        colourResult.r = colourResult.r * (1 - whiteMix) + whiteMix;
+        colourResult.g = colourResult.g * (1 - whiteMix) + whiteMix;
+        colourResult.b = colourResult.b * (1 - whiteMix) + whiteMix;
+
+        // Ensure valid color values after mixing
+        colourResult.r = std::clamp(colourResult.r, 0.0f, 1.0f);
+        colourResult.g = std::clamp(colourResult.g, 0.0f, 1.0f);
+        colourResult.b = std::clamp(colourResult.b, 0.0f, 1.0f);
         bool currentValid = std::isfinite(clear_color[0]) && 
                           std::isfinite(clear_color[1]) && 
                           std::isfinite(clear_color[2]);
         
-        // Check if new colours are valid
         bool newValid = std::isfinite(colourResult.r) && 
                        std::isfinite(colourResult.g) && 
                        std::isfinite(colourResult.b);
 
-        // Reset to default if current colours are invalid
         if (!currentValid) {
             clear_color[0] = clear_color[1] = clear_color[2] = 0.1f;
         }
 
         // Only apply new colours if they're valid
         if (newValid) {
-            
             // Apply smoothing with clamping
             for (int i = 0; i < 3; i++) {
                 float newValue = clear_color[i] * (1.0f - SMOOTHING);
@@ -137,11 +185,12 @@ void updateUI(AudioInput &audioInput,
 
         if (showUI) {
             ImVec2 displaySize = io.DisplaySize;
-            ImVec2 windowSize = ImVec2(250, 80);
+            ImVec2 windowSize = ImVec2(280, 100);
             ImGui::SetNextWindowPos(ImVec2(15, displaySize.y - windowSize.y - 150), ImGuiCond_Always);
             ImGui::SetNextWindowSize(windowSize, ImGuiCond_Always);
             ImGui::Begin("Colour Settings");
             
+            ImGui::Checkbox("Dynamic Gamma", &dynamicGammaEnabled);
             ImGui::SliderFloat("Smoothing", &colourSmoothingSpeed, 0.1f, 20.0f, "%.1f");
             if (ImGui::Button("Reset")) {
                 colourSmoothingSpeed = 5.5f;

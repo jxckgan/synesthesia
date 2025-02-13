@@ -17,7 +17,8 @@ public:
     static constexpr float MAX_FREQ = 20000.0f;
     
     static ColourResult frequenciesToColour(const std::vector<float>& frequencies, 
-                                          const std::vector<float>& magnitudes);
+                                          const std::vector<float>& magnitudes,
+                                          float gamma = 0.8f);
     
 private:
     static float frequencyToWavelength(float freq);

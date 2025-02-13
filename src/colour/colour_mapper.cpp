@@ -4,7 +4,7 @@
 #include <numeric>
 
 ColourMapper::ColourResult ColourMapper::frequenciesToColour(
-    const std::vector<float>& frequencies, const std::vector<float>& magnitudes)
+    const std::vector<float>& frequencies, const std::vector<float>& magnitudes, float gamma)
 {
     // Default result
     ColourResult result { 0.1f, 0.1f, 0.1f, 0.0f };
@@ -45,7 +45,6 @@ ColourMapper::ColourResult ColourMapper::frequenciesToColour(
     b = std::clamp(b, 0.0f, 1.0f);
 
     // Apply gamma correction to the blended colour
-    constexpr float gamma = 0.8f;
     result.r = std::isfinite(r) ? std::pow(r, gamma) : 0.1f;
     result.g = std::isfinite(g) ? std::pow(g, gamma) : 0.1f;
     result.b = std::isfinite(b) ? std::pow(b, gamma) : 0.1f;
