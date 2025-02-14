@@ -93,7 +93,11 @@ void ColourMapper::wavelengthToRGB(float wavelength, float& r, float& g, float& 
     r = g = b = 0.1f;
 
     // Mapping wavelength ranges to RGB values
-    if (wavelength >= 696.0f && wavelength <= 737.0f) { // Dark red to red
+    if (wavelength >= 737.0f && wavelength <= 750.0f) { // Deep Red
+        r = 1.0f;
+        g = 0.0f;
+        b = 0.0f;
+    } else if (wavelength >= 696.0f && wavelength <= 737.0f) { // Dark red to red
         float t = std::clamp((wavelength - 696.0f) / (737.0f - 696.0f), 0.0f, 1.0f);
         r = (255.0f - t * 81.0f) / 255.0f;
         g = 0.0f;
@@ -147,6 +151,11 @@ void ColourMapper::wavelengthToRGB(float wavelength, float& r, float& g, float& 
         r = (71.0f + t * 28.0f) / 255.0f;
         b = (237.0f - t * 59.0f) / 255.0f;
         g = 0.0f;
+    } else if (wavelength >= 380.0f && wavelength < 390.0f) { // Violet to blue
+        float t = std::clamp((wavelength - 380.0f) / (390.0f - 380.0f), 0.0f, 1.0f);
+        r = (128.0f - t * (128.0f - 71.0f)) / 255.0f;
+        g = 0.0f;
+        b = (128.0f + t * (237.0f - 128.0f)) / 255.0f;
     }
 
     // Adjust intensity for wavelengths outside the optimal visible range
