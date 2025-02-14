@@ -239,7 +239,7 @@ float FFTProcessor::calculateNoiseFloor(const std::vector<float>& magnitudes) co
             validMags.push_back(magnitudes[i]);
         }
     }
-    if (validMags.empty()) return 0.0f;
+    if (validMags.empty()) return 1e-5f;
 
     const size_t n = validMags.size();
     auto mid_it = validMags.begin() + n / 2;
