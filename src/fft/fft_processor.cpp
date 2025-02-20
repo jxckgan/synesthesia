@@ -143,9 +143,9 @@ void FFTProcessor::findFrequencyPeaks(float sampleRate) {
                          (freq > 1900.0f && freq < 2000.0f ? (2000.0f - freq) / 100.0f : 0.0f));
 
         // EQ balance
-        lowResponse *= 0.4f;
-        midResponse *= 0.5f;
-        highResponse *= 1.2f;
+        lowResponse *= (0.4f * 0.2f);
+        midResponse *= (0.5f * 0.4f);
+        highResponse *= (1.2f * 1.6f);
 
         // Compute the combined gain
         float combinedGain = (lowResponse * currentLowGain) +
