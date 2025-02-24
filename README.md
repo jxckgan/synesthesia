@@ -25,7 +25,6 @@ cmake --build .
 ./synesthesia
 ```
 
-If you're downloading the prebuilt binaries for macOS, you'll need to right-click, press open, and then navigate to System Preferences -> Privacy & Security, and confirm you want to open it; this is because Synesthesia binaries aren't codesigned with an Apple Developer Account 
 <details><summary><h3>Building an App Bundle on macOS</h3></summary>
 
 In order to build a macOS Application Bundle, we use the following flags (`-DBUILD_MACOS_BUNDLE`) to enable our app-building option:
