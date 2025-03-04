@@ -7,17 +7,25 @@
 AudioInput::AudioInput() 
     : stream(nullptr)
     , sampleRate(44100.0f)
+    , previousInput(0.0f)
+    , previousOutput(0.0f)
+    , noiseGateThreshold(0.001f)
+    , dcRemovalAlpha(0.995f)
 {
     PaError err = Pa_Initialize();
     if (err != paNoError) {
         throw std::runtime_error("PortAudio initialization failed: " + 
             std::string(Pa_GetErrorText(err)));
     }
+    
+    processor.start();
 }
 
 AudioInput::~AudioInput() {
     stopStream();
     Pa_Terminate();
+    
+    processor.stop();
 }
 
 // Retrieves a list of available input devices
@@ -93,20 +101,13 @@ bool AudioInput::initStream(int deviceIndex) {
 
 // Maps the current dominant frequency to a colour
 void AudioInput::getColourForCurrentFrequency(float& r, float& g, float& b, float& freq, float& wavelength) {
-    std::vector<FFTProcessor::FrequencyPeak> peaks = fftProcessor.getDominantFrequencies();
-    std::vector<float> freqs, mags;
+    processor.getColourForCurrentFrequency(r, g, b, freq, wavelength);
+}
 
-    for (const auto &peak : peaks) {
-        freqs.push_back(peak.frequency);
-        mags.push_back(peak.magnitude);
-    }
-
-    auto colourResult = ColourMapper::frequenciesToColour(freqs, mags);
-    r = colourResult.r;
-    g = colourResult.g;
-    b = colourResult.b;
-    freq = (!peaks.empty()) ? peaks[0].frequency : 0.0f;
-    wavelength = colourResult.dominantWavelength;
+// Returns the current list of frequency peaks
+std::vector<FFTProcessor::FrequencyPeak> AudioInput::getFrequencyPeaks() const {
+    // Delegate to processor
+    return processor.getFrequencyPeaks();
 }
 
 // Stops and cleans up the current audio stream
@@ -120,24 +121,53 @@ void AudioInput::stopStream() {
 
 // Processes incoming audio data
 int AudioInput::audioCallback(const void* input, void* output,
-                              unsigned long frameCount,
-                              const PaStreamCallbackTimeInfo* timeInfo,
-                              PaStreamCallbackFlags statusFlags,
-                              void* userData)
+                          unsigned long frameCount,
+                          const PaStreamCallbackTimeInfo* timeInfo,
+                          PaStreamCallbackFlags statusFlags,
+                          void* userData)
 {
     auto* audio = static_cast<AudioInput*>(userData);
 
     if (!input) {
         return paContinue;
     }
+    
+    try {
+        const float* inBuffer = static_cast<const float*>(input);
+        static thread_local std::vector<float> processedBuffer;
+        if (processedBuffer.size() < frameCount) {
+            processedBuffer.resize(frameCount);
+        }
 
-    const float* inBuffer = static_cast<const float*>(input);
-    audio->fftProcessor.processBuffer(inBuffer, frameCount, audio->sampleRate);
+        // Apply DC removal and noise gate
+        for (unsigned long i = 0; i < frameCount; ++i) {
+            float sample = inBuffer[i];
+
+            // DC Offset Removal
+            float filteredSample = sample - audio->previousInput + audio->dcRemovalAlpha * audio->previousOutput;
+            audio->previousInput = sample;
+            audio->previousOutput = filteredSample;
+
+            // Noise Gate
+            if (std::abs(filteredSample) < audio->noiseGateThreshold) {
+                filteredSample = 0.0f;
+            }
+            
+            processedBuffer[i] = filteredSample;
+        }
+
+        // Queue the processed data for the worker thread
+        audio->processor.queueAudioData(processedBuffer.data(), frameCount, audio->sampleRate);
+    }
+    catch (const std::exception& ex) {
+        std::cerr << "Warning in audio callback: " << ex.what() << "\n";
+        // Continue processing even when there's an error
+        return paContinue;
+    }
+    catch (...) {
+        std::cerr << "Unknown warning in audio callback.\n";
+        return paContinue;
+    }
 
     return paContinue;
-}
-
-// Returns the current list of frequency peaks
-std::vector<FFTProcessor::FrequencyPeak> AudioInput::getFrequencyPeaks() const {
-    return fftProcessor.getDominantFrequencies();
 }

@@ -15,14 +15,36 @@ ColourMapper::ColourResult ColourMapper::frequenciesToColour(
     size_t count = std::min(frequencies.size(), magnitudes.size());
 
     // Calculate total magnitude
-    float totalMagnitude = std::accumulate(magnitudes.begin(), magnitudes.begin() + count, 0.0f);
+    float totalMagnitude = 0.0f;
+    for (size_t i = 0; i < count; ++i) {
+        if (std::isfinite(frequencies[i]) && std::isfinite(magnitudes[i]))
+            totalMagnitude += magnitudes[i];
+    }
+    
     if (totalMagnitude <= 0.0f)
         return result;
 
     float r = 0.0f, g = 0.0f, b = 0.0f;
-    float wavelengthSum = 0.0f;
+    float dominantWavelength = 0.0f;
+    float maxWeight = 0.0f;
+    float dominantFreq = 0.0f;
     
-    // Blend colours from all frequencies based on their magnitude weights
+    // Find dominant frequency by weight
+    for (size_t i = 0; i < count; ++i) {
+        if (!std::isfinite(frequencies[i]) || !std::isfinite(magnitudes[i]))
+            continue;
+            
+        float weight = magnitudes[i] / totalMagnitude;
+        if (weight > maxWeight) {
+            maxWeight = weight;
+            dominantFreq = frequencies[i];
+        }
+    }
+    
+    // Calculate dominant wavelength from dominant frequency
+    dominantWavelength = frequencyToWavelength(dominantFreq);
+    
+    // Blend colors based on magnitude weights
     for (size_t i = 0; i < count; ++i) {
         if (!std::isfinite(frequencies[i]) || !std::isfinite(magnitudes[i]))
             continue;
@@ -36,7 +58,6 @@ ColourMapper::ColourResult ColourMapper::frequenciesToColour(
         r += cr * weight;
         g += cg * weight;
         b += cb * weight;
-        wavelengthSum += wavelength * weight;
     }
 
     // Clamp values before gamma correction
@@ -53,7 +74,7 @@ ColourMapper::ColourResult ColourMapper::frequenciesToColour(
     result.r = std::clamp(result.r, 0.0f, 1.0f);
     result.g = std::clamp(result.g, 0.0f, 1.0f);
     result.b = std::clamp(result.b, 0.0f, 1.0f);
-    result.dominantWavelength = std::isfinite(wavelengthSum) ? wavelengthSum : 0.0f;
+    result.dominantWavelength = std::isfinite(dominantWavelength) ? dominantWavelength : 0.0f;
 
     return result;
 }
@@ -86,7 +107,6 @@ void ColourMapper::wavelengthToRGB(float wavelength, float& r, float& g, float& 
         return;
     }
 
-    constexpr float gamma = 0.8f;
     float intensity = 1.0f;
 
     // Default to dark gray
@@ -169,14 +189,4 @@ void ColourMapper::wavelengthToRGB(float wavelength, float& r, float& g, float& 
     r = std::clamp(r * intensity, 0.0f, 1.0f);
     g = std::clamp(g * intensity, 0.0f, 1.0f);
     b = std::clamp(b * intensity, 0.0f, 1.0f);
-
-    // Apply gamma correction with safety checks
-    r = std::isfinite(r) ? std::pow(r, gamma) : 0.1f;
-    g = std::isfinite(g) ? std::pow(g, gamma) : 0.1f;
-    b = std::isfinite(b) ? std::pow(b, gamma) : 0.1f;
-
-    // Final clamp to ensure valid range
-    r = std::clamp(r, 0.0f, 1.0f);
-    g = std::clamp(g, 0.0f, 1.0f);
-    b = std::clamp(b, 0.0f, 1.0f);
 }

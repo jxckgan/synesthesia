@@ -40,7 +40,9 @@ endif()
 
 # Collect source files
 set(SOURCES
+    ${SRC_DIR}/zero_crossing/zero_crossing.cpp
     ${SRC_DIR}/audio/audio_input.cpp
+    ${SRC_DIR}/audio/audio_processor.cpp
     ${SRC_DIR}/colour/colour_mapper.cpp
     ${SRC_DIR}/fft/fft_processor.cpp
     ${SRC_DIR}/ui.cpp
@@ -95,6 +97,7 @@ target_include_directories(synesthesia PRIVATE
     ${SRC_DIR}/audio
     ${SRC_DIR}/colour
     ${SRC_DIR}/fft
+    ${SRC_DIR}/zero_crossing
     ${CMAKE_BINARY_DIR}
     /usr/local/include
     /opt/homebrew/include

@@ -76,6 +76,10 @@ void FFTProcessor::processBuffer(const float* buffer, size_t numSamples, float s
 
 std::vector<FFTProcessor::FrequencyPeak> FFTProcessor::getDominantFrequencies() const {
     std::lock_guard<std::mutex> lock(peaksMutex);
+    
+    if (currentPeaks.empty() || currentPeaks[0].magnitude < 0.01f)
+        return {};
+        
     return currentPeaks;
 }
 
@@ -205,13 +209,22 @@ void FFTProcessor::findFrequencyPeaks(float sampleRate) {
 }
 
 bool FFTProcessor::isHarmonic(float testFreq, float baseFreq) const {
-    float dynamicTolerance = 0.05f * (baseFreq / 250.0f);
-    float ratio = testFreq / baseFreq;
-    
+    if (baseFreq <= 0.0f || testFreq <= 0.0f)
+        return false;
+        
+    float toleranceHz = std::max(3.0f, baseFreq * 0.03f);
     for (int h = 2; h <= MAX_HARMONIC; ++h) {
-        if (std::abs(ratio - static_cast<float>(h)) < dynamicTolerance)
+        float expectedHarmonic = baseFreq * h;
+        if (std::abs(testFreq - expectedHarmonic) < toleranceHz)
             return true;
     }
+    
+    for (int h = 2; h <= MAX_HARMONIC; ++h) {
+        float expectedHarmonic = testFreq * h;
+        if (std::abs(baseFreq - expectedHarmonic) < toleranceHz)
+            return true;
+    }
+    
     return false;
 }
 
@@ -233,28 +246,26 @@ float FFTProcessor::interpolateFrequency(int bin, float sampleRate) const {
 }
 
 float FFTProcessor::calculateNoiseFloor(const std::vector<float>& magnitudes) const {
-    std::vector<float> validMags;
+    const size_t estimatedCapacity = magnitudes.size() > 2 ? magnitudes.size() - 2 : 0;
+    std::vector<float> filteredMags;
+    filteredMags.reserve(estimatedCapacity);
+    
     for (size_t i = 1; i < magnitudes.size() - 1; ++i) {
         if (magnitudes[i] > 1e-6f) {
-            validMags.push_back(magnitudes[i]);
+            filteredMags.push_back(magnitudes[i]);
         }
     }
-    if (validMags.empty()) return 1e-5f;
-
-    const size_t n = validMags.size();
-    auto mid_it = validMags.begin() + n / 2;
-    std::nth_element(validMags.begin(), mid_it, validMags.end());
-    const float median = *mid_it;
-
-    std::vector<float> deviations(n);
-    std::transform(validMags.begin(), validMags.end(), deviations.begin(),
-                   [median](float x) { return std::abs(x - median); });
-
-    auto mid_dev_it = deviations.begin() + n / 2;
-    std::nth_element(deviations.begin(), mid_dev_it, deviations.end());
-    const float MAD = *mid_dev_it;
     
-    return median + 2.0f * MAD * 1.4826f;
+    if (filteredMags.empty()) return 1e-5f;
+    const size_t n = filteredMags.size();
+    const size_t medianIdx = n / 2;
+    std::nth_element(filteredMags.begin(), filteredMags.begin() + medianIdx, filteredMags.end());
+    const float median = filteredMags[medianIdx];
+    float peak = *std::max_element(filteredMags.begin(), filteredMags.end());
+    float adaptiveFactor = 0.1f + (0.05f * std::log2(1.0f + peak / (median + 1e-6f)));
+    float noiseFloor = median * (1.0f + adaptiveFactor);
+
+    return std::max(noiseFloor, 1e-5f);
 }
 
 void FFTProcessor::reset() {
