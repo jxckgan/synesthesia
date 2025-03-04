@@ -4,7 +4,7 @@ Synesthesia is an application which provides a real-time visualisation of audio 
 
 ### Building & Running
 
-Synesthesia runs on Windows (DirectX 12), macOS (Metal), and Linux (Vulkan). To run this project, make sure `cmake` is installed, and just clone this repository w/ submodules and run `make run` (we build app dependencies locally):
+Synesthesia runs on Windows (DirectX 12) and macOS (Metal). To run this project, make sure `cmake` is installed, and just clone this repository w/ submodules and run `make run` (we build app dependencies locally):
 
 > **Note**:
 > For Windows clients, you must install VS Microsoft C++ Build Tools, [here is a guide](https://github.com/bycloudai/InstallVSBuildToolsWindows?tab=readme-ov-file) for installing and setting up your PATH.
@@ -68,7 +68,7 @@ Your executable will then be placed in the Release folder (placed at the root of
 - macOS Application Building: [Appify/OSX App in Plain C](https://github.com/jimon/osx_app_in_plain_c)
 
 > **⚠️ Warning:**<br>
-> This application may display rapidly changing colors when multiple frequencies are played. If you have photosensitive epilepsy, I strongly advise against using this application.
+> This application may display rapidly changing colours when multiple frequencies are played. If you have photosensitive epilepsy, I strongly advise against using this application.
 
 > **Note:**
 > This application is artistic in nature, and doesn't aim to replicate Synesthesia (Chromesthesia) or to be scientifically accurate.
