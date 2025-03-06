@@ -1,4 +1,5 @@
 #include "audio_processor.h"
+#include <algorithm>
 
 AudioProcessor::AudioProcessor()
     : writeIndex(0)
