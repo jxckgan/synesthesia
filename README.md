@@ -1,4 +1,4 @@
-# synesthesia
+# Synesthesia
 
 Synesthesia is an application which provides a real-time visualisation of audio frequencies represented as colour. Features a rudimentary EQ, real-time frequency & wavelength information, and an audio input selection system.
 
@@ -25,7 +25,7 @@ cmake --build .
 ./synesthesia
 ```
 
-<details><summary><h3>Building an App Bundle on macOS</h3></summary>
+#### Building an App Bundle on macOS
 
 In order to build a macOS Application Bundle, we use the following flags (`-DBUILD_MACOS_BUNDLE`) to enable our app-building option:
 
@@ -36,8 +36,7 @@ cmake --build .
 
 And your `.app` will be in the root of the build directory.
 
-</details>
-<details><summary><h3>Building an Executable on Windows</h3></summary>
+#### Building an Executable on Windows
 
 To build a standalone/portable Windows executable, we use the following flags (`-DCMAKE_BUILD_TYPE=Release`) to build:
 
@@ -47,9 +46,6 @@ cmake --build . --config Release
 ```
 
 Your executable will then be placed in the Release folder (placed at the root of your build directory).
-
-</details>
-
 
 ### Todo
 
@@ -72,3 +68,5 @@ Your executable will then be placed in the Release folder (placed at the root of
 
 > **Note:**
 > This application is artistic in nature, and doesn't aim to replicate Synesthesia (Chromesthesia) or to be scientifically accurate.
+
+> If by chance you happen to have WiZ LED lights, I've made a GUI utility which syncs your screen to your LEDs via the network. [Check it out](https://github.com/jxckgan/wiz-eyedropper).
