@@ -2,7 +2,11 @@
 
 Synesthesia is an application which provides a real-time visualisation of audio frequencies represented as colour. Features a rudimentary EQ, real-time frequency & wavelength information, and an audio input selection system.
 
-### Building & Running
+### Installation
+
+Synesthesia is automatically built by GitHub Actions, you can download the application from the [Releases](https://github.com/jxckgan/synesthesia/releases/) page.
+
+### Manual Building & Running
 
 Synesthesia runs on Windows (DirectX 12) and macOS (Metal). To run this project, make sure `cmake` is installed, and just clone this repository w/ submodules (we build app dependencies locally):
 
