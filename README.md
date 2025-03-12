@@ -65,7 +65,6 @@ Your executable will then be placed in the Release folder (placed at the root of
 - Visible Light Spectrum to RGB: [Endolith](https://www.endolith.com/wordpress/2010/09/15/a-mapping-between-musical-notes-and-colors/)
 - GUI built w/  [Dear ImGui](https://github.com/ocornut/imgui)
 - Lightweight FFT possible w/ [KissFFT](https://github.com/mborgerding/kissfft)
-- macOS Application Building: [Appify/OSX App in Plain C](https://github.com/jimon/osx_app_in_plain_c)
 
 > **⚠️ Warning:**<br>
 > This application may display rapidly changing colours when multiple frequencies are played. If you have photosensitive epilepsy, I strongly advise against using this application.
