@@ -45,16 +45,34 @@ jobs:
         working-directory: ./build
         run: cmake --build .
 
+      - name: Create entitlements file
+        run: |
+          cat > entitlements.plist << 'EOF'
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+              <key>com.apple.security.device.audio-input</key>
+              <true/>
+          </dict>
+          </plist>
+          EOF
+
+      - name: Create ad-hoc signature for macOS app
+        run: |
+          codesign --force --deep --sign - --entitlements entitlements.plist --options runtime build/synesthesia.app
+          codesign -vvv --deep --strict build/synesthesia.app
+
       - name: Package for macOS (Apple Silicon)
         run: |
           cd build
-          zip -r synesthesia-mac-arm.zip synesthesia.app
+          hdiutil create -volname "Synesthesia" -srcfolder synesthesia.app -ov -format UDZO synesthesia-mac-arm.dmg
 
       - name: Upload macOS artifact
         uses: actions/upload-artifact@v4
         with:
           name: synesthesia-mac-arm
-          path: build/synesthesia-mac-arm.zip
+          path: build/synesthesia-mac-arm.dmg
 
   build-windows:
     needs: check-release-flag
@@ -151,8 +169,13 @@ jobs:
             
             ### Changelog
             ${{ steps.changelog.outputs.content }}
+            
+            ### Installation Notes
+            **macOS Users**: After downloading, if you get a warning about the app being from an unidentified developer, right-click (or control-click) on the app and select "Open" from the menu. Click "Open" in the dialog box that appears.
+            
+            This app requires microphone access. You may need to approve this permission the first time you run the app.
           files: |
-            artifacts/synesthesia-mac-arm/synesthesia-mac-arm.zip
+            artifacts/synesthesia-mac-arm/synesthesia-mac-arm.dmg
             artifacts/synesthesia-win-x64/synesthesia-win-x64.zip
           draft: false
           prerelease: false
