@@ -97,6 +97,8 @@ jobs:
     needs: [check-release-flag, build-macos, build-windows]
     if: needs.check-release-flag.outputs.should_release == 'true'
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
