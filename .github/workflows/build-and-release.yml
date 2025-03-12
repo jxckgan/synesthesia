@@ -1,0 +1,158 @@
+name: Build and Release
+
+on:
+  push:
+    branches: [ main ]
+
+jobs:
+  check-release-flag:
+    runs-on: ubuntu-latest
+    outputs:
+      should_release: ${{ steps.check-flag.outputs.should_release }}
+    steps:
+      - name: Check for release flag
+        id: check-flag
+        run: |
+          if [[ "${{ github.event.head_commit.message }}" == *"--release"* ]]; then
+            echo "should_release=true" >> $GITHUB_OUTPUT
+          else
+            echo "should_release=false" >> $GITHUB_OUTPUT
+          fi
+
+  build-macos:
+    needs: check-release-flag
+    if: needs.check-release-flag.outputs.should_release == 'true'
+    runs-on: macos-14
+    steps:
+      - name: Checkout code with submodules
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          fetch-depth: 0
+
+      - name: Install dependencies
+        run: |
+          brew install cmake portaudio
+
+      - name: Create build directory
+        run: mkdir build
+
+      - name: Configure CMake
+        working-directory: ./build
+        run: cmake .. -DBUILD_MACOS_BUNDLE=ON
+
+      - name: Build application
+        working-directory: ./build
+        run: cmake --build .
+
+      - name: Package for macOS (Apple Silicon)
+        run: |
+          cd build
+          zip -r synesthesia-mac-arm.zip synesthesia.app
+
+      - name: Upload macOS artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: synesthesia-mac-arm
+          path: build/synesthesia-mac-arm.zip
+
+  build-windows:
+    needs: check-release-flag
+    if: needs.check-release-flag.outputs.should_release == 'true'
+    runs-on: windows-latest
+    steps:
+      - name: Checkout code with submodules
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          fetch-depth: 0
+
+      - name: Setup MSVC Developer Command Prompt
+        uses: ilammy/msvc-dev-cmd@v1
+
+      - name: Create build directory
+        run: mkdir build
+
+      - name: Configure CMake
+        working-directory: ./build
+        run: cmake .. -DCMAKE_BUILD_TYPE=Release
+
+      - name: Build application
+        working-directory: ./build
+        run: cmake --build . --config Release
+
+      - name: Package for Windows (x64)
+        run: |
+          cd build\Release
+          # Copy any necessary DLLs
+          Compress-Archive -Path *.exe, *.dll -DestinationPath ..\synesthesia-win-x64.zip
+
+      - name: Upload Windows artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: synesthesia-win-x64
+          path: build/synesthesia-win-x64.zip
+
+  create-release:
+    needs: [check-release-flag, build-macos, build-windows]
+    if: needs.check-release-flag.outputs.should_release == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Get version from commit
+        id: get-version
+        run: |
+          # Extract version from commit message (can be customized as needed)
+          VERSION=$(echo "${{ github.event.head_commit.message }}" | grep -oP '(?<=--release\s*)[^\s]+' || echo "v$(date +'%Y.%m.%d')")
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+
+      - name: Generate changelog
+        id: changelog
+        run: |
+          # Find the last release commit
+          LAST_RELEASE_COMMIT=$(git log --grep="--release" --format="%H" | sed -n 2p)
+          
+          if [ -z "$LAST_RELEASE_COMMIT" ]; then
+            # If no previous release found, use all commits
+            CHANGELOG=$(git log --pretty=format:"- %s (%h) by %an" ${{ github.sha }})
+          else
+            # Get commits between last release and current commit (excluding the last release commit)
+            CHANGELOG=$(git log --pretty=format:"- %s (%h) by %an" $LAST_RELEASE_COMMIT..${{ github.sha }} | grep -v "\-\-release")
+          fi
+          
+          # Escape newlines and quotes for GitHub Actions
+          CHANGELOG="${CHANGELOG//'%'/'%25'}"
+          CHANGELOG="${CHANGELOG//$'\n'/'%0A'}"
+          CHANGELOG="${CHANGELOG//$'\r'/'%0D'}"
+          
+          echo "content<<EOF" >> $GITHUB_OUTPUT
+          echo "$CHANGELOG" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Create GitHub Release
+        id: create_release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ steps.get-version.outputs.version }}
+          name: Release ${{ steps.get-version.outputs.version }}
+          body: |
+            ## Synesthesia ${{ steps.get-version.outputs.version }}
+            
+            ### Changelog
+            ${{ steps.changelog.outputs.content }}
+          files: |
+            artifacts/synesthesia-mac-arm/synesthesia-mac-arm.zip
+            artifacts/synesthesia-win-x64/synesthesia-win-x64.zip
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
