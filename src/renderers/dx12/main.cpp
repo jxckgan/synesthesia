@@ -21,6 +21,10 @@
 #pragma comment(lib, "dxguid.lib")
 #endif
 
+#ifndef DWMWA_CAPTION_COLOR
+#define DWMWA_CAPTION_COLOR 35
+#endif
+
 static const int APP_NUM_FRAMES_IN_FLIGHT = 2;
 static const int APP_NUM_BACK_BUFFERS = 2;
 static const int APP_SRV_HEAP_SIZE = 64;
