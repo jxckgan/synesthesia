@@ -138,10 +138,10 @@ jobs:
           
           if [ -z "$LAST_RELEASE_COMMIT" ]; then
             # If no previous release found, use all commits
-            CHANGELOG=$(git log --pretty=format:"- %s (%h) by %an" ${{ github.sha }})
+            CHANGELOG=$(git log --pretty=format:"- %s (%h) by %an%n" ${{ github.sha }})
           else
             # Get commits between last release and current commit (excluding the last release commit)
-            CHANGELOG=$(git log --pretty=format:"- %s (%h) by %an" $LAST_RELEASE_COMMIT..${{ github.sha }} | grep -v "\-\-release")
+            CHANGELOG=$(git log --pretty=format:"- %s (%h) by %an%n" $LAST_RELEASE_COMMIT..${{ github.sha }} | grep -v "\-\-release")
           fi
           
           # Escape newlines and quotes for GitHub Actions
