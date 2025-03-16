@@ -317,13 +317,21 @@ void updateUI(AudioInput &audioInput,
             }
             
             // Show/Hide UI
-            const float bottomTextHeight = ImGui::GetTextLineHeightWithSpacing() + 12;
-            ImGui::SetCursorPos(ImVec2(SIDEBAR_PADDING, displaySize.y - bottomTextHeight));
+
+            // Compute how much space we have left before the bottom
+            float bottomTextHeight = ImGui::GetTextLineHeightWithSpacing() + 12;
+            ImVec2 contentRegionAvail = ImGui::GetContentRegionAvail();
+
+            float spaceToBottom = contentRegionAvail.y - bottomTextHeight;
+            if (spaceToBottom > 0.0f) {
+                ImGui::Dummy(ImVec2(0.0f, spaceToBottom));
+            }
+
             ImGui::Separator();
             float textWidth = ImGui::CalcTextSize("Press H to hide/show interface").x;
             ImGui::SetCursorPosX((SIDEBAR_WIDTH - textWidth) * 0.5f);
             ImGui::TextDisabled("Press H to hide/show interface");
-            
+
             ImGui::End();
             
             // Restore original style
@@ -372,32 +380,73 @@ void updateUI(AudioInput &audioInput,
                 );
                 
                 // Create efficient point array for spectrum line
-                const int lineCount = std::min(16384, static_cast<int>(smoothedMagnitudes.size()));
+                const int lineCount = 500;
                 ImVec2* points = (ImVec2*)alloca(sizeof(ImVec2) * lineCount);
                 
-                // Fill point array with spectrum data (curve points only)
+                // Calculate sample rate and FFT bin size from the smoothedMagnitudes buffer
+                float sampleRate = audioInput.getFFTProcessor().FFT_SIZE;
+                if (selectedDeviceIndex >= 0) {
+                    const PaDeviceInfo* deviceInfo = Pa_GetDeviceInfo(devices[selectedDeviceIndex].paIndex);
+                    if (deviceInfo) {
+                        sampleRate = deviceInfo->defaultSampleRate;
+                    }
+                }
+                
+                const float binSize = sampleRate / FFTProcessor::FFT_SIZE;
+                const float minFreq = FFTProcessor::MIN_FREQ;
+                const float maxFreq = FFTProcessor::MAX_FREQ;
+                
+                // Fill point array with spectrum data
                 for (int i = 0; i < lineCount; ++i) {
-                    // Apply logarithmic scaling for frequency axis
-                    float logPosition = std::pow(static_cast<float>(i) / lineCount, 0.4f);
+                    // Calculate frequency for this point using logarithmic scale
+                    float logPosition = static_cast<float>(i) / (lineCount - 1);
+                    float freq = minFreq * std::pow(maxFreq / minFreq, logPosition);
+                    
+                    // Calculate corresponding bin index
+                    float binIndex = freq / binSize;
+                    
+                    // Ensure bin index is in valid range
+                    int binIndexFloor = static_cast<int>(binIndex);
+                    int binIndexCeil = binIndexFloor + 1;
+                    binIndexFloor = std::max(0, std::min(binIndexFloor, static_cast<int>(smoothedMagnitudes.size()) - 1));
+                    binIndexCeil = std::max(0, std::min(binIndexCeil, static_cast<int>(smoothedMagnitudes.size()) - 1));
+                    
+                    // Interpolate between bins
+                    float t = binIndex - binIndexFloor;
+                    float magnitude = smoothedMagnitudes[binIndexFloor] * (1 - t) + smoothedMagnitudes[binIndexCeil] * t;
+                    
+                    // Apply logarithmic scale for x-axis position
                     float xPos = canvas_pos.x + (logPosition * canvas_size.x);
                     
-                    // More smoothing for visual appeal
-                    float magnitude = 0.0f;
-                    int count = 0;
-                    
-                    // Simplified smoothing with immediate neighbors
-                    for (int j = std::max(0, i-2); j <= std::min(lineCount-1, i+2); ++j) {
-                        float weight = 1.0f - (std::abs(i - j) / 3.0f);
-                        magnitude += smoothedMagnitudes[j] * weight;
-                        count++;
-                    }
-                    magnitude /= count;
-                    
-                    float height = (magnitude / yMax) * canvas_size.y * 0.9f; // 90% max height for visual margin
-                    height = std::min(height, canvas_size.y * 0.95f);
+                    // Calculate y position
+                    float height = (magnitude / yMax) * canvas_size.y * 0.7f; // 70% max height for visual margin
+                    height = std::min(height, canvas_size.y * 0.75f);
                     
                     float yPos = canvas_pos.y + canvas_size.y - height;
                     points[i] = ImVec2(xPos, yPos);
+                }
+
+                // Add peak smoothing
+                const int smoothingWindow = 7;
+                std::vector<float> smoothedYPositions(lineCount);
+
+                for (int i = 0; i < lineCount; ++i) {
+                    float sum = 0.0f;
+                    int count = 0;
+                    
+                    for (int j = std::max(0, i - smoothingWindow/2); 
+                         j <= std::min(lineCount - 1, i + smoothingWindow/2); 
+                         ++j) {
+                        sum += points[j].y;
+                        count++;
+                    }
+                    
+                    smoothedYPositions[i] = sum / count;
+                }
+
+                // Apply the smoothed y-positions back to the points
+                for (int i = 0; i < lineCount; ++i) {
+                    points[i].y = smoothedYPositions[i];
                 }
                 
                 // Define colours
@@ -415,7 +464,7 @@ void updateUI(AudioInput &audioInput,
                     
                     drawList->AddConvexPolyFilled(quad, 4, fillColor);
                 }
-                
+
                 // Draw the spectrum line on top
                 const float lineThickness = 1.5f;
                 for (int i = 0; i < lineCount - 1; ++i) {
@@ -502,16 +551,21 @@ void updateUI(AudioInput &audioInput,
         else {
             ImGui::TextDisabled("No audio input devices found.");
         }
-        ImGui::Spacing();
-        ImGui::Spacing();
         
-        const float bottomTextHeight = ImGui::GetTextLineHeightWithSpacing() + 12;
-        ImGui::SetCursorPos(ImVec2(SIDEBAR_PADDING, displaySize.y - bottomTextHeight));
+        // Compute how much space we have left before the bottom
+        float bottomTextHeight = ImGui::GetTextLineHeightWithSpacing() + 12;
+        ImVec2 contentRegionAvail = ImGui::GetContentRegionAvail();
+
+        float spaceToBottom = contentRegionAvail.y - bottomTextHeight;
+        if (spaceToBottom > 0.0f) {
+            ImGui::Dummy(ImVec2(0.0f, spaceToBottom));
+        }
+
         ImGui::Separator();
         float textWidth = ImGui::CalcTextSize("Press H to hide/show interface").x;
         ImGui::SetCursorPosX((SIDEBAR_WIDTH - textWidth) * 0.5f);
         ImGui::TextDisabled("Press H to hide/show interface");
-        
+
         ImGui::End();
         
         // Restore original style
