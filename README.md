@@ -51,6 +51,10 @@ cmake --build . --config Release
 
 Your executable will then be placed in the Release folder (placed at the root of your build directory).
 
+### Video Demo
+
+https://github.com/user-attachments/assets/f9064abc-8d23-4636-ae79-a315447b7a4c
+
 ### Todo
 
 - [x] ~~Cross-platform support~~
