@@ -25,14 +25,16 @@ FFTProcessor::FFTProcessor()
         throw std::runtime_error("Error allocating FFTR configuration.");
     }
     
-    // Precompute Hann window
     for (size_t i = 0; i < hannWindow.size(); ++i) {
         hannWindow[i] = 0.5f * (1.0f - std::cos(2.0f * static_cast<float>(M_PI) * i / (FFT_SIZE - 1)));
     }
 }
 
 FFTProcessor::~FFTProcessor() {
-    kiss_fftr_free(fft_cfg);
+    if (fft_cfg) {
+        kiss_fftr_free(fft_cfg);
+        fft_cfg = nullptr;
+    }
 }
 
 float FFTProcessor::getCurrentLoudness() const {
@@ -47,19 +49,19 @@ void FFTProcessor::setEQGains(float low, float mid, float high) {
     highGain = std::max(0.0f, high);
 }
 
-void FFTProcessor::applyWindow(const float* buffer, size_t numSamples) {
-    size_t copySize = std::min(numSamples, static_cast<size_t>(FFT_SIZE));
+void FFTProcessor::applyWindow(const std::span<const float> buffer) {
+    size_t copySize = std::min(buffer.size(), static_cast<size_t>(FFT_SIZE));
     std::fill(fft_in.begin(), fft_in.end(), 0.0f);
     for (size_t i = 0; i < copySize; ++i) {
         fft_in[i] = buffer[i] * hannWindow[i];
     }
 }
 
-void FFTProcessor::processBuffer(const float* buffer, size_t numSamples, float sampleRate) {
-    if (sampleRate <= 0.0f || !buffer) return;
+void FFTProcessor::processBuffer(const std::span<const float> buffer, float sampleRate) {
+    if (sampleRate <= 0.0f || buffer.empty()) return;
     std::lock_guard<std::mutex> processingLock(processingMutex);
 
-    applyWindow(buffer, numSamples);
+    applyWindow(buffer);
     kiss_fftr(fft_cfg, fft_in.data(), fft_out.data());
 
     // Normalise FFT output
@@ -88,12 +90,8 @@ std::vector<float> FFTProcessor::getMagnitudesBuffer() const {
     return magnitudesBuffer;
 }
 
-void FFTProcessor::findFrequencyPeaks(float sampleRate) {
-    std::lock_guard<std::mutex> lock(peaksMutex);
-    
-    std::fill(magnitudesBuffer.begin(), magnitudesBuffer.end(), 0.0f);
-    currentPeaks.clear();
-
+void FFTProcessor::processMagnitudes(std::vector<float>& magnitudes, float sampleRate, float maxMagnitude) {
+    float normalizationFactor = (maxMagnitude > 1e-6f) ? 1.0f / maxMagnitude : 1.0f;
     float currentLowGain, currentMidGain, currentHighGain;
     {
         std::lock_guard<std::mutex> gainsLock(gainsMutex);
@@ -101,41 +99,13 @@ void FFTProcessor::findFrequencyPeaks(float sampleRate) {
         currentMidGain = midGain;
         currentHighGain = highGain;
     }
-
-    const size_t binCount = fft_out.size();
-    float maxMagnitude = 0.0f;
-    float totalEnergy = 0.0f;
-    std::vector<float> rawMagnitudes(binCount);
     
-    // First pass
-    for (size_t i = 1; i < binCount - 1; ++i) {
+    for (size_t i = 0; i < fft_out.size(); ++i) {
         float freq = (static_cast<float>(i) * sampleRate) / FFT_SIZE;
         if (freq < MIN_FREQ || freq > MAX_FREQ) continue;
 
-        // Calculate raw magnitude without normalization
-        float magnitude = std::hypot(fft_out[i].r, fft_out[i].i);
-        rawMagnitudes[i] = magnitude;
-        totalEnergy += magnitude * magnitude;
-        maxMagnitude = std::max(maxMagnitude, magnitude);
-    }
-
-    // Calculate RMS value and convert to logarithmic scale
-    float rmsValue = std::sqrt(totalEnergy / static_cast<float>(binCount));
-    float dbFS = 20.0f * std::log10(std::max(rmsValue, 1e-6f)); // Convert to dB, with a floor of -60 dB
-    
-    // Normalize dbFS to a 0-1 range (-60 dB to 0 dB)
-    float normalisedLoudness = std::clamp((dbFS + 60.0f) / 60.0f, 0.0f, 1.0f);
-
-    currentLoudness = (currentLoudness * 0.7f) + (normalisedLoudness * 0.3f);
-
-    // Second pass
-    float normalizationFactor = (maxMagnitude > 1e-6f) ? 1.0f / maxMagnitude : 1.0f;    
-    for (size_t i = 1; i < binCount - 1; ++i) {
-        float freq = (static_cast<float>(i) * sampleRate) / FFT_SIZE;
-        if (freq < MIN_FREQ || freq > MAX_FREQ) continue;
-
-        // Normalize the magnitude for frequency detection
-        float normalisedMagnitude = rawMagnitudes[i] * normalizationFactor;
+        // Calculate raw magnitude
+        float normalisedMagnitude = std::hypot(fft_out[i].r, fft_out[i].i) * normalizationFactor;
         
         // Frequency band splitting with clamped gains
         float lowResponse = (freq <= 200.0f) ? 1.0f :
@@ -146,35 +116,93 @@ void FFTProcessor::findFrequencyPeaks(float sampleRate) {
                          (freq > 200.0f && freq < 250.0f ? (freq - 200.0f) / 50.0f :
                          (freq > 1900.0f && freq < 2000.0f ? (2000.0f - freq) / 100.0f : 0.0f));
 
-        // EQ balance
-        lowResponse *= 0.4f;
-        midResponse *= 0.5f;
-        highResponse *= 1.2f;
+        // Perceptual Hearing
+        float f2 = freq * freq;
+        float numerator = 12200.0f * 12200.0f * f2 * f2;
+        float denominator = (f2 + 20.6f * 20.6f) * 
+                           std::sqrt((f2 + 107.7f * 107.7f) * 
+                           (f2 + 737.9f * 737.9f)) * 
+                           (f2 + 12200.0f * 12200.0f);
+                           
+        float aWeight = numerator / denominator;
+        float dbAdjustment = 2.0f * std::log10(aWeight) + 2.0f;
+        float perceptualGain = std::pow(10.0f, dbAdjustment / 20.0f);
 
-        // Compute the combined gain
-        float combinedGain = (lowResponse * currentLowGain) +
-                           (midResponse * currentMidGain) +
-                           (highResponse * currentHighGain);
+        // Combine with user EQ
+        float combinedGain = perceptualGain * 
+                           (lowResponse * currentLowGain +
+                            midResponse * currentMidGain +
+                            highResponse * currentHighGain);
         
         combinedGain = std::clamp(combinedGain, 0.0f, 4.0f);
-        magnitudesBuffer[i] = std::clamp(normalisedMagnitude * combinedGain, 0.0f, 1.0f);
+        magnitudes[i] = normalisedMagnitude * combinedGain;
     }
+}
 
-    // Find peaks using the normalised values
-    float noiseFloor = calculateNoiseFloor(magnitudesBuffer);
-    std::vector<FrequencyPeak> rawPeaks;
+void FFTProcessor::calculateMagnitudes(std::vector<float>& rawMagnitudes, float sampleRate,
+                                     float& maxMagnitude, float& totalEnergy) {
+    maxMagnitude = 0.0f;
+    totalEnergy = 0.0f;
     
-    for (size_t i = 2; i < binCount - 1; ++i) {
+    for (size_t i = 1; i < fft_out.size() - 1; ++i) {
+        float freq = (static_cast<float>(i) * sampleRate) / FFT_SIZE;
+        if (freq < MIN_FREQ || freq > MAX_FREQ) continue;
+
+        // Calculate raw magnitude without normalization
+        float magnitude = std::hypot(fft_out[i].r, fft_out[i].i);
+        rawMagnitudes[i] = magnitude;
+        totalEnergy += magnitude * magnitude;
+        maxMagnitude = std::max(maxMagnitude, magnitude);
+    }
+}
+
+void FFTProcessor::findPeaks(float sampleRate, float noiseFloor, std::vector<FrequencyPeak>& peaks) {
+    for (size_t i = 2; i < magnitudesBuffer.size() - 1; ++i) {
         if (magnitudesBuffer[i] > noiseFloor &&
             magnitudesBuffer[i] > magnitudesBuffer[i - 1] &&
             magnitudesBuffer[i] > magnitudesBuffer[i + 1])
         {
             float freq = interpolateFrequency(static_cast<int>(i), sampleRate);
             if (freq >= MIN_FREQ && freq <= MAX_FREQ) {
-                rawPeaks.push_back({freq, magnitudesBuffer[i]});
+                peaks.push_back({freq, magnitudesBuffer[i]});
             }
         }
     }
+}
+
+void FFTProcessor::findFrequencyPeaks(float sampleRate) {
+    {
+        std::lock_guard<std::mutex> lock(peaksMutex);
+        std::fill(magnitudesBuffer.begin(), magnitudesBuffer.end(), 0.0f);
+        currentPeaks.clear();
+    }
+
+    const size_t binCount = fft_out.size();
+    std::vector<float> rawMagnitudes(binCount, 0.0f);
+    float maxMagnitude = 0.0f;
+    float totalEnergy = 0.0f;
+    
+    calculateMagnitudes(rawMagnitudes, sampleRate, maxMagnitude, totalEnergy);
+    
+    // Calculate RMS value and convert to logarithmic scale
+    float rmsValue = std::sqrt(totalEnergy / static_cast<float>(binCount));
+    float dbFS = 20.0f * std::log10(std::max(rmsValue, 1e-6f));
+    
+    // Normalise dbFS to a 0-1 range (-60 dB to 0 dB)
+    float normalisedLoudness = std::clamp((dbFS + 60.0f) / 60.0f, 0.0f, 1.0f);
+
+    {
+        std::lock_guard<std::mutex> lock(peaksMutex);
+        currentLoudness = (currentLoudness * 0.7f) + (normalisedLoudness * 0.3f);
+    }
+
+    // Process magnitudes with EQ
+    processMagnitudes(magnitudesBuffer, sampleRate, maxMagnitude);
+
+    // Find peaks
+    float noiseFloor = calculateNoiseFloor(magnitudesBuffer);
+    std::vector<FrequencyPeak> rawPeaks;
+    findPeaks(sampleRate, noiseFloor, rawPeaks);
 
     // Sort and filter peaks
     std::sort(rawPeaks.begin(), rawPeaks.end(),
@@ -182,6 +210,9 @@ void FFTProcessor::findFrequencyPeaks(float sampleRate) {
                   return a.magnitude > b.magnitude;
               });
 
+    // Lock for updating shared data
+    std::lock_guard<std::mutex> lock(peaksMutex);
+    
     // Filter harmonics and update peaks
     std::vector<FrequencyPeak> newPeaks;
     for (const auto& peak : rawPeaks) {
@@ -229,6 +260,10 @@ bool FFTProcessor::isHarmonic(float testFreq, float baseFreq) const {
 }
 
 float FFTProcessor::interpolateFrequency(int bin, float sampleRate) const {
+    if (bin <= 0 || bin >= static_cast<int>(fft_out.size()) - 1) {
+        return bin * sampleRate / FFT_SIZE;
+    }
+
     auto magnitude = [](const kiss_fft_cpx& v) {
         return std::hypot(v.r, v.i);
     };

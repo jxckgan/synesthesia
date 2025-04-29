@@ -4,6 +4,8 @@
 #include <mutex>
 #include <chrono>
 #include <stdexcept>
+#include <atomic>
+#include <span>
 #include "kiss_fftr.h"
 
 class FFTProcessor {
@@ -13,7 +15,6 @@ public:
     static constexpr float MAX_FREQ = 20000.0f;
     static constexpr int MAX_HARMONIC = 8;
     static constexpr int MAX_PEAKS = 3;
-    float getCurrentLoudness() const;
 
     struct FrequencyPeak {
         float frequency;
@@ -23,9 +24,15 @@ public:
     FFTProcessor();
     ~FFTProcessor();
 
-    void processBuffer(const float* buffer, size_t numSamples, float sampleRate);
+    FFTProcessor(const FFTProcessor&) = delete;
+    FFTProcessor& operator=(const FFTProcessor&) = delete;
+    FFTProcessor(FFTProcessor&&) noexcept = delete;
+    FFTProcessor& operator=(FFTProcessor&&) noexcept = delete;
+
+    void processBuffer(const std::span<const float> buffer, float sampleRate);
     std::vector<FrequencyPeak> getDominantFrequencies() const;
     std::vector<float> getMagnitudesBuffer() const;
+    float getCurrentLoudness() const;
     void reset();
     void setEQGains(float low, float mid, float high);
 
@@ -53,9 +60,15 @@ private:
     float currentLoudness;
     static constexpr float LOUDNESS_SMOOTHING = 0.2f;
 
-    void applyWindow(const float* buffer, size_t numSamples);
+    void applyWindow(const std::span<const float> buffer);
     void findFrequencyPeaks(float sampleRate);
     float interpolateFrequency(int bin, float sampleRate) const;
     float calculateNoiseFloor(const std::vector<float>& magnitudes) const;
     bool isHarmonic(float testFreq, float baseFreq) const;
+    
+    void calculateMagnitudes(std::vector<float>& rawMagnitudes, float sampleRate, 
+                            float& maxMagnitude, float& totalEnergy);
+    
+    void processMagnitudes(std::vector<float>& magnitudes, float sampleRate, float maxMagnitude);
+    void findPeaks(float sampleRate, float noiseFloor, std::vector<FrequencyPeak>& peaks);
 };

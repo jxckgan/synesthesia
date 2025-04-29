@@ -1,192 +1,277 @@
 #include "colour_mapper.h"
 #include <algorithm>
 #include <cmath>
-#include <numeric>
+#include <vector>
+#include <array>
 
-ColourMapper::ColourResult ColourMapper::frequenciesToColour(
-    const std::vector<float>& frequencies, const std::vector<float>& magnitudes, float gamma)
-{
-    // Default result
-    ColourResult result { 0.1f, 0.1f, 0.1f, 0.0f };
-    if (frequencies.empty() || magnitudes.empty())
-        return result;
-
-    // Use the minimum count in case the two vectors differ
-    size_t count = std::min(frequencies.size(), magnitudes.size());
-
-    // Calculate total magnitude
-    float totalMagnitude = 0.0f;
-    for (size_t i = 0; i < count; ++i) {
-        if (std::isfinite(frequencies[i]) && std::isfinite(magnitudes[i]))
-            totalMagnitude += magnitudes[i];
-    }
+void ColourMapper::interpolateCIE(float wavelength, float& X, float& Y, float& Z) {
+    // Clamp wavelength to valid CIE 1931 range
+    wavelength = std::clamp(wavelength, 380.0f, 825.0f);
     
-    if (totalMagnitude <= 0.0f)
-        return result;
+    // Calculate index
+    float indexFloat = (wavelength - 380.0f) / 5.0f;
+    size_t index = static_cast<size_t>(std::floor(indexFloat));
+    index = std::min(index, CIE_TABLE_SIZE - 2);
 
-    float r = 0.0f, g = 0.0f, b = 0.0f;
-    float dominantWavelength = 0.0f;
-    float maxWeight = 0.0f;
-    float dominantFreq = 0.0f;
-    
-    // Find dominant frequency by weight
-    for (size_t i = 0; i < count; ++i) {
-        if (!std::isfinite(frequencies[i]) || !std::isfinite(magnitudes[i]))
-            continue;
-            
-        float weight = magnitudes[i] / totalMagnitude;
-        if (weight > maxWeight) {
-            maxWeight = weight;
-            dominantFreq = frequencies[i];
-        }
-    }
-    
-    // Calculate dominant wavelength from dominant frequency
-    dominantWavelength = frequencyToWavelength(dominantFreq);
-    
-    // Blend colors based on magnitude weights
-    for (size_t i = 0; i < count; ++i) {
-        if (!std::isfinite(frequencies[i]) || !std::isfinite(magnitudes[i]))
-            continue;
-            
-        float weight = magnitudes[i] / totalMagnitude;
-        float wavelength = frequencyToWavelength(frequencies[i]);
+    const auto& entry0 = CIE_1931[index];
+    const auto& entry1 = CIE_1931[index + 1];
 
-        float cr, cg, cb;
-        wavelengthToRGB(wavelength, cr, cg, cb);
-        
-        r += cr * weight;
-        g += cg * weight;
-        b += cb * weight;
-    }
+    float lambda0 = entry0[0];
+    float lambda1 = entry1[0];
+    float t = (lambda1 != lambda0) ? (wavelength - lambda0) / (lambda1 - lambda0) : 0.0f;
+    t = std::clamp(t, 0.0f, 1.0f);
+    
+    X = std::lerp(entry0[1], entry1[1], t);
+    Y = std::lerp(entry0[2], entry1[2], t);
+    Z = std::lerp(entry0[3], entry1[3], t);
+}
 
-    // Clamp values before gamma correction
+void ColourMapper::XYZtoRGB(float X, float Y, float Z, float& r, float& g, float& b) {
+    r =  3.2406f * X - 1.5372f * Y - 0.4986f * Z;
+    g = -0.9689f * X + 1.8758f * Y + 0.0415f * Z;
+    b =  0.0557f * X - 0.2040f * Y + 1.0570f * Z;
+
+    auto gammaCorrect = [](float c) {
+        return (c <= 0.0031308f) ? 
+            12.92f * c : 
+            1.055f * std::pow(c, 1.0f/2.4f) - 0.055f;
+    };
+
+    r = std::clamp(gammaCorrect(r), 0.0f, 1.0f);
+    g = std::clamp(gammaCorrect(g), 0.0f, 1.0f);
+    b = std::clamp(gammaCorrect(b), 0.0f, 1.0f);
+}
+
+void ColourMapper::RGBtoXYZ(float r, float g, float b, float& X, float& Y, float& Z) {
     r = std::clamp(r, 0.0f, 1.0f);
     g = std::clamp(g, 0.0f, 1.0f);
     b = std::clamp(b, 0.0f, 1.0f);
+    
+    auto inverseGamma = [](float c) {
+        return (c <= 0.04045f) ? 
+            c / 12.92f : 
+            std::pow((c + 0.055f) / 1.055f, 2.4f);
+    };
+    
+    float r_linear = inverseGamma(r);
+    float g_linear = inverseGamma(g);
+    float b_linear = inverseGamma(b);
+    
+    X = 0.4124f * r_linear + 0.3576f * g_linear + 0.1805f * b_linear;
+    Y = 0.2126f * r_linear + 0.7152f * g_linear + 0.0722f * b_linear;
+    Z = 0.0193f * r_linear + 0.1192f * g_linear + 0.9505f * b_linear;
+}
 
-    // Apply gamma correction to the blended colour
-    result.r = std::isfinite(r) ? std::pow(r, gamma) : 0.1f;
-    result.g = std::isfinite(g) ? std::pow(g, gamma) : 0.1f;
-    result.b = std::isfinite(b) ? std::pow(b, gamma) : 0.1f;
+// Convert XYZ to Lab colour space
+void ColourMapper::XYZtoLab(float X, float Y, float Z, float& L, float& a, float& b) {
+    // Prevent division by zero
+    const float epsilon = 0.008856f;
+    const float kappa = 903.3f;
+    
+    // Normalise XYZ by reference white point
+    float xr = X / (REF_X + epsilon);
+    float yr = Y / (REF_Y + epsilon);
+    float zr = Z / (REF_Z + epsilon);
+    
+    // Apply nonlinear compression
+    auto f = [epsilon, kappa](float t) {
+        return (t > epsilon) ? 
+            std::pow(t, 1.0f/3.0f) : 
+            (kappa * t + 16.0f) / 116.0f;
+    };
+    
+    float fx = f(xr);
+    float fy = f(yr);
+    float fz = f(zr);
+    
+    L = 116.0f * fy - 16.0f;
+    a = 500.0f * (fx - fy);
+    b = 200.0f * (fy - fz);
+    
+    // Ensure Lab values are in reasonable ranges
+    L = std::clamp(L, 0.0f, 100.0f);
+    a = std::clamp(a, -128.0f, 127.0f);
+    b = std::clamp(b, -128.0f, 127.0f);
+}
 
-    // Ensure final values are valid
-    result.r = std::clamp(result.r, 0.0f, 1.0f);
-    result.g = std::clamp(result.g, 0.0f, 1.0f);
-    result.b = std::clamp(result.b, 0.0f, 1.0f);
-    result.dominantWavelength = std::isfinite(dominantWavelength) ? dominantWavelength : 0.0f;
+// Convert Lab to XYZ colour space
+void ColourMapper::LabtoXYZ(float L, float a, float b, float& X, float& Y, float& Z) {
+    L = std::clamp(L, 0.0f, 100.0f);
+    a = std::clamp(a, -128.0f, 127.0f);
+    b = std::clamp(b, -128.0f, 127.0f);
+    
+    // Compute f(Y) from L
+    float fY = (L + 16.0f) / 116.0f;
+    float fX = fY + a / 500.0f;
+    float fZ = fY - b / 200.0f;
+    
+    // Constants for the piecewise function
+    const float delta = 6.0f / 29.0f;
+    const float delta_squared = delta * delta;
+    
+    // Inverse nonlinear compression
+    auto fInv = [delta, delta_squared](float t) {
+        return (t > delta) ? 
+            std::pow(t, 3.0f) : 
+            3.0f * delta_squared * (t - 4.0f / 29.0f);
+    };
+    
+    X = REF_X * fInv(fX);
+    Y = REF_Y * fInv(fY);
+    Z = REF_Z * fInv(fZ);
+    
+    // Ensure non-negative values
+    X = std::max(0.0f, X);
+    Y = std::max(0.0f, Y);
+    Z = std::max(0.0f, Z);
+}
+
+// Convert RGB to Lab colour space
+void ColourMapper::RGBtoLab(float r, float g, float b, float& L, float& a, float& b_comp) {
+    float X, Y, Z;
+    RGBtoXYZ(r, g, b, X, Y, Z);
+    XYZtoLab(X, Y, Z, L, a, b_comp);
+}
+
+// Convert Lab to RGB colour space
+void ColourMapper::LabtoRGB(float L, float a, float b_comp, float& r, float& g, float& b) {
+    float X, Y, Z;
+    LabtoXYZ(L, a, b_comp, X, Y, Z);
+    XYZtoRGB(X, Y, Z, r, g, b);
+}
+
+void ColourMapper::wavelengthToRGBCIE(float wavelength, float& r, float& g, float& b) {
+    if (!std::isfinite(wavelength)) {
+        wavelength = MIN_WAVELENGTH;
+    }
+    
+    float X, Y, Z;
+    interpolateCIE(wavelength, X, Y, Z);
+    XYZtoRGB(X, Y, Z, r, g, b); 
+}
+
+// Logarithmic frequency to wavelength mapping
+float ColourMapper::logFrequencyToWavelength(float freq) {
+    if (!std::isfinite(freq) || freq <= 0.001f) return MIN_WAVELENGTH;
+    
+    // Calculate octave position
+    const float MIN_LOG_FREQ = std::log2(MIN_FREQ);
+    const float MAX_LOG_FREQ = std::log2(MAX_FREQ);
+    const float LOG_FREQ_RANGE = MAX_LOG_FREQ - MIN_LOG_FREQ;
+    
+    float logFreq = std::log2(freq);
+    float normalisedLogFreq = (logFreq - MIN_LOG_FREQ) / LOG_FREQ_RANGE;
+    float t = std::clamp(normalisedLogFreq, 0.0f, 1.0f);
+    
+    // Invert wavelength for an intuitive visualisation (bass notes are dark red, etc)
+    return MAX_WAVELENGTH - t * (MAX_WAVELENGTH - MIN_WAVELENGTH);
+}
+
+ColourMapper::ColourResult ColourMapper::frequenciesToColour(
+    const std::vector<float>& frequencies, const std::vector<float>& magnitudes, 
+    float gamma)
+{
+    // Default dark result for no input
+    ColourResult result {0.1f, 0.1f, 0.1f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f};
+    
+    // Validate inputs
+    if (frequencies.empty() || magnitudes.empty()) {
+        return result;
+    }
+
+    size_t count = std::min(frequencies.size(), magnitudes.size());
+    std::vector<float> weights(count, 0.0f);
+    float totalWeight = 0.0f;
+    
+    size_t validCount = 0;
+    float maxValidMagnitude = 0.0f;
+
+    // Validate data and find max magnitude for normalisation
+    for (size_t i = 0; i < count; ++i) {
+        if (!std::isfinite(frequencies[i]) || !std::isfinite(magnitudes[i]) || 
+            frequencies[i] <= 0.0f || magnitudes[i] < 0.0f) {
+            continue;
+        }
+        
+        validCount++;
+        maxValidMagnitude = std::max(maxValidMagnitude, magnitudes[i]);
+    }
+    
+    // Early return if no valid data
+    if (validCount == 0 || maxValidMagnitude <= 0.0f) {
+        return result;
+    }
+
+    // Normalise weighting
+    for (size_t i = 0; i < count; ++i) {
+        if (!std::isfinite(frequencies[i]) || !std::isfinite(magnitudes[i]) || 
+            frequencies[i] <= 0.0f || magnitudes[i] < 0.0f) {
+            continue;
+        }
+        
+        float weight = magnitudes[i];
+        weights[i] = weight;
+        totalWeight += weight;
+    }
+
+    if (totalWeight <= 0.0f) {
+        return result;
+    }
+
+    // Work in LAB space for better perceptual blending
+    float L_blend = 0.0f;
+    float a_blend = 0.0f;
+    float b_blend = 0.0f;
+    
+    float maxComponent = 0.0f;
+    float dominantWavelength = 0.0f;
+    float dominantFrequency = 0.0f;
+
+    // Convert each frequency a colour and accumulate in Lab space
+    for (size_t i = 0; i < count; ++i) {
+        if (weights[i] <= 0.0f) continue;
+        
+        float weight = weights[i] / totalWeight;
+        float wavelength = logFrequencyToWavelength(frequencies[i]);
+        
+        // Get colour in RGB
+        float r, g, b;
+        wavelengthToRGBCIE(wavelength, r, g, b);
+        
+        // Convert to Lab for perceptual blending
+        float L, a, b_comp;
+        RGBtoLab(r, g, b, L, a, b_comp);
+        
+        // Weighted contribution to final colour
+        L_blend += L * weight;
+        a_blend += a * weight;
+        b_blend += b_comp * weight;
+
+        if (weight > maxComponent) {
+            maxComponent = weight;
+            dominantWavelength = wavelength;
+            dominantFrequency = frequencies[i];
+        }
+    }
+
+    // Convert blended Lab back to RGB
+    LabtoRGB(L_blend, a_blend, b_blend, result.r, result.g, result.b);
+    
+    // Apply gamma scaling
+    gamma = std::clamp(gamma, 0.1f, 5.0f);
+    result.r = std::pow(std::clamp(result.r, 0.0f, 1.0f), gamma);
+    result.g = std::pow(std::clamp(result.g, 0.0f, 1.0f), gamma);
+    result.b = std::pow(std::clamp(result.b, 0.0f, 1.0f), gamma);
+
+    // Store physical properties
+    result.dominantWavelength = dominantWavelength;
+    result.dominantFrequency = dominantFrequency;
+    result.colourIntensity = 0.2126f*result.r + 0.7152f*result.g + 0.0722f*result.b;
+    
+    // Store Lab components
+    result.L = L_blend;
+    result.a = a_blend;
+    result.b_comp = b_blend;
 
     return result;
-}
-
-float ColourMapper::frequencyToWavelength(float freq) {
-    // Return 0 for invalid frequencies
-    if (freq <= 0 || !std::isfinite(freq))
-        return 0;
-    
-    // Clamp the frequency within [MIN_FREQ, MAX_FREQ]
-    float clampedFreq = std::clamp(freq, MIN_FREQ, MAX_FREQ);
-    float logFreq    = std::log(clampedFreq);
-    float logMinFreq = std::log(MIN_FREQ);
-    float logMaxFreq = std::log(MAX_FREQ);
-    
-    float t = (logFreq - logMinFreq) / (logMaxFreq - logMinFreq);
-    
-    // Ensure t is valid before final calculation
-    t = std::clamp(t, 0.0f, 1.0f);
-    float wavelength = MAX_WAVELENGTH - t * (MAX_WAVELENGTH - MIN_WAVELENGTH);
-    
-    // Final validation
-    return std::isfinite(wavelength) ? wavelength : 0.0f;
-}
-
-void ColourMapper::wavelengthToRGB(float wavelength, float& r, float& g, float& b) {
-    // Return a default colour if wavelength is invalid
-    if (wavelength <= 0.0f || !std::isfinite(wavelength)) {
-        r = g = b = 0.1f;
-        return;
-    }
-
-    float intensity = 1.0f;
-
-    // Default to dark gray
-    r = g = b = 0.1f;
-
-    // Mapping wavelength ranges to RGB values
-    if (wavelength >= 737.0f && wavelength <= 750.0f) { // Deep Red
-        r = 1.0f;
-        g = 0.0f;
-        b = 0.0f;
-    } else if (wavelength >= 696.0f && wavelength <= 737.0f) { // Dark red to red
-        float t = std::clamp((wavelength - 696.0f) / (737.0f - 696.0f), 0.0f, 1.0f);
-        r = (255.0f - t * 81.0f) / 255.0f;
-        g = 0.0f;
-        b = 0.0f;
-    } else if (wavelength >= 657.0f && wavelength <= 696.0f) { // Pure red
-        r = 1.0f;
-        g = 0.0f;
-        b = 0.0f;
-    } else if (wavelength >= 620.0f && wavelength <= 657.0f) { // Red to orange-red
-        float t = std::clamp((wavelength - 620.0f) / (657.0f - 620.0f), 0.0f, 1.0f);
-        r = 1.0f;
-        g = (102.0f - t * 102.0f) / 255.0f;
-        b = 0.0f;
-    } else if (wavelength >= 585.0f && wavelength <= 620.0f) { // Orange-red to yellow
-        float t = std::clamp((wavelength - 585.0f) / (620.0f - 585.0f), 0.0f, 1.0f);
-        r = 1.0f;
-        g = (239.0f - t * 137.0f) / 255.0f;
-        b = 0.0f;
-    } else if (wavelength >= 552.0f && wavelength <= 585.0f) { // Yellow to chartreuse
-        float t = std::clamp((wavelength - 552.0f) / (585.0f - 552.0f), 0.0f, 1.0f);
-        r = (153.0f + t * 102.0f) / 255.0f;
-        g = (255.0f - t * 16.0f) / 255.0f;
-        b = 0.0f;
-    } else if (wavelength >= 521.0f && wavelength <= 552.0f) { // Chartreuse to lime green
-        float t = std::clamp((wavelength - 521.0f) / (552.0f - 521.0f), 0.0f, 1.0f);
-        r = (40.0f + t * 113.0f) / 255.0f;
-        g = 1.0f;
-        b = 0.0f;
-    } else if (wavelength >= 492.0f && wavelength <= 521.0f) { // Green to aqua
-        float t = std::clamp((wavelength - 492.0f) / (521.0f - 492.0f), 0.0f, 1.0f);
-        r = t * 40.0f / 255.0f;
-        g = 1.0f;
-        b = t * 242.0f / 255.0f;
-    } else if (wavelength >= 464.0f && wavelength <= 492.0f) { // Aqua to sky blue
-        float t = std::clamp((wavelength - 464.0f) / (492.0f - 464.0f), 0.0f, 1.0f);
-        r = 0.0f;
-        g = (122.0f + t * 133.0f) / 255.0f;
-        b = (255.0f - t * 13.0f) / 255.0f;
-    } else if (wavelength >= 438.0f && wavelength <= 464.0f) { // Sky blue to blue
-        float t = std::clamp((wavelength - 438.0f) / (464.0f - 438.0f), 0.0f, 1.0f);
-        r = (5.0f - t * 5.0f) / 255.0f;
-        g = (t * 122.0f) / 255.0f;
-        b = 1.0f;
-    } else if (wavelength >= 414.0f && wavelength <= 438.0f) { // Blue to darker blue
-        float t = std::clamp((wavelength - 414.0f) / (438.0f - 414.0f), 0.0f, 1.0f);
-        r = (5.0f + t * 66.0f) / 255.0f;
-        b = (237.0f + t * 18.0f) / 255.0f;
-        g = 0.0f;
-    } else if (wavelength >= 390.0f && wavelength <= 414.0f) { // Darker blue to indigo
-        float t = std::clamp((wavelength - 390.0f) / (414.0f - 390.0f), 0.0f, 1.0f);
-        r = (71.0f + t * 28.0f) / 255.0f;
-        b = (237.0f - t * 59.0f) / 255.0f;
-        g = 0.0f;
-    } else if (wavelength >= 380.0f && wavelength < 390.0f) { // Violet to blue
-        float t = std::clamp((wavelength - 380.0f) / (390.0f - 380.0f), 0.0f, 1.0f);
-        r = (128.0f - t * (128.0f - 71.0f)) / 255.0f;
-        g = 0.0f;
-        b = (128.0f + t * (237.0f - 128.0f)) / 255.0f;
-    }
-
-    // Adjust intensity for wavelengths outside the optimal visible range
-    if (wavelength > 700.0f) {
-        intensity = std::clamp(0.3f + 0.7f * (750.0f - wavelength) / (750.0f - 700.0f), 0.0f, 1.0f);
-    } else if (wavelength < 420.0f) {
-        intensity = std::clamp(0.3f + 0.7f * (wavelength - 380.0f) / (420.0f - 380.0f), 0.0f, 1.0f);
-    }
-
-    // Clamp values before gamma correction
-    r = std::clamp(r * intensity, 0.0f, 1.0f);
-    g = std::clamp(g * intensity, 0.0f, 1.0f);
-    b = std::clamp(b * intensity, 0.0f, 1.0f);
 }

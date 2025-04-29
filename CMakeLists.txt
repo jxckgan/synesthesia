@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.13)
 project(Synesthesia)
 
-set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(IMGUI_DIR "${CMAKE_CURRENT_SOURCE_DIR}/vendor/imgui")
 set(KISSFFT_DIR "${CMAKE_CURRENT_SOURCE_DIR}/vendor/kissfft")
@@ -26,8 +26,18 @@ if(EXISTS "${GLFW_DIR}/CMakeLists.txt")
     set(GLFW_TARGET glfw)
 endif()
 
+if(CMAKE_VERSION VERSION_GREATER_EQUAL 3.12)
+    cmake_policy(SET CMP0074 NEW)
+endif()
+if(CMAKE_VERSION VERSION_GREATER_EQUAL 3.5)
+    set(CMAKE_POLICY_DEFAULT_CMP0048 NEW)
+endif()
+
 if(EXISTS "${PORTAUDIO_DIR}/CMakeLists.txt")
     message(STATUS "Using vendor PortAudio from ${PORTAUDIO_DIR}")
+    
+    set(CMAKE_POLICY_VERSION_MINIMUM 3.5 CACHE STRING "Minimum policy version for CMake" FORCE)
+    
     add_subdirectory(${PORTAUDIO_DIR})
     if(TARGET PortAudio::PortAudio)
         set(PORTAUDIO_TARGET PortAudio::PortAudio)
@@ -45,6 +55,7 @@ set(SOURCES
     ${SRC_DIR}/audio/audio_processor.cpp
     ${SRC_DIR}/colour/colour_mapper.cpp
     ${SRC_DIR}/fft/fft_processor.cpp
+    ${SRC_DIR}/ui/smoothing.cpp
     ${SRC_DIR}/ui.cpp
     ${IMGUI_DIR}/imgui.cpp
     ${IMGUI_DIR}/imgui_demo.cpp
@@ -97,6 +108,7 @@ target_include_directories(synesthesia PRIVATE
     ${SRC_DIR}/audio
     ${SRC_DIR}/colour
     ${SRC_DIR}/fft
+    ${SRC_DIR}/ui
     ${SRC_DIR}/zero_crossing
     ${CMAKE_BINARY_DIR}
     /usr/local/include

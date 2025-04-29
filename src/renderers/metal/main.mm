@@ -67,6 +67,8 @@ int main(int, char**) {
 
     float clear_color[4] = {0.1f, 0.1f, 0.1f, 1.0f};
 
+    UIState uiState;
+
     // Main loop
     while (!glfwWindowShouldClose(window)) {
         @autoreleasepool {
@@ -102,7 +104,7 @@ int main(int, char**) {
             ImGui::NewFrame();
 
             // Call the UI update logic
-            updateUI(audioInput, devices, clear_color, io);
+            updateUI(audioInput, devices, clear_color, io, uiState);
 
             // Render the ImGui frame
             ImGui::Render();

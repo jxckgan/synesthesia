@@ -9,7 +9,7 @@ AudioInput::AudioInput()
     , sampleRate(44100.0f)
     , previousInput(0.0f)
     , previousOutput(0.0f)
-    , noiseGateThreshold(0.001f)
+    , noiseGateThreshold(0.0001f)
     , dcRemovalAlpha(0.995f)
 {
     PaError err = Pa_Initialize();
@@ -159,6 +159,7 @@ int AudioInput::audioCallback(const void* input, void* output,
         // Queue the processed data for the worker thread
         audio->processor.queueAudioData(processedBuffer.data(), frameCount, audio->sampleRate);
     }
+    
     catch (const std::exception& ex) {
         std::cerr << "Warning in audio callback: " << ex.what() << "\n";
         // Continue processing even when there's an error
