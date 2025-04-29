@@ -87,7 +87,7 @@ void AudioProcessor::processingThreadFunc() {
 
 void AudioProcessor::processBuffer(const AudioBuffer& buffer) {
     // Process with both FFT and zero-crossing detector
-    fftProcessor.processBuffer(buffer.data.data(), buffer.sampleCount, buffer.sampleRate);
+    fftProcessor.processBuffer(std::span<const float>(buffer.data.data(), buffer.sampleCount), buffer.sampleRate);
     zeroCrossingDetector.processSamples(buffer.data.data(), buffer.sampleCount, buffer.sampleRate);
     
     // Get new frequency peaks
@@ -97,35 +97,16 @@ void AudioProcessor::processBuffer(const AudioBuffer& buffer) {
     float zcFreq = zeroCrossingDetector.getEstimatedFrequency();
     if (zcFreq > 20.0f && zcFreq < 20000.0f) {
         bool foundMatch = false;
-        
-        // Check for similar frequency in peaks
         for (auto& peak : peaks) {
             float freqRatio = peak.frequency / zcFreq;
-            if (freqRatio > 0.9f && freqRatio < 1.1f) {
-                // Average the frequencies
-                peak.frequency = peak.frequency * 0.3f + zcFreq * 0.7f;
+            if (freqRatio > 0.95f && freqRatio < 1.05f) {
+                peak.frequency = zcFreq;
                 foundMatch = true;
                 break;
             }
         }
-        
-        if (!foundMatch && peaks.size() < FFTProcessor::MAX_PEAKS) {
-            // Estimate magnitude based on zero-crossing density
-            float zcDensity = zeroCrossingDetector.getZeroCrossingDensity();
-            float estimatedMagnitude = std::min(1.0f, zcDensity / 1000.0f);
-            
-            peaks.push_back({zcFreq, estimatedMagnitude});
-            
-            // Sort peaks by magnitude
-            std::sort(peaks.begin(), peaks.end(),
-                [](const FFTProcessor::FrequencyPeak& a, const FFTProcessor::FrequencyPeak& b) {
-                    return a.magnitude > b.magnitude;
-                });
-                
-            // Keep (only) the top peaks
-            if (peaks.size() > FFTProcessor::MAX_PEAKS) {
-                peaks.resize(FFTProcessor::MAX_PEAKS);
-            }
+        if (!foundMatch) {
+            peaks.push_back({zcFreq, 1.0f});
         }
     }
     

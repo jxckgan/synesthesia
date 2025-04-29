@@ -186,6 +186,8 @@ int main(int, char**)
     AudioInput audioInput;
     std::vector<AudioInput::DeviceInfo> devices = audioInput.getInputDevices();
 
+    UIState uiState;
+
     // Main loop
     bool done = false;
     while (!done)
@@ -216,7 +218,7 @@ int main(int, char**)
         ImGui::NewFrame();
 
         // Call the UI update logic
-        updateUI(audioInput, devices, &clear_color.x, io);
+        updateUI(audioInput, devices, &clear_color.x, io, uiState);
 
         // Rendering
         ImGui::Render();
