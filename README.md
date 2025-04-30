@@ -66,14 +66,11 @@ https://github.com/user-attachments/assets/f9064abc-8d23-4636-ae79-a315447b7a4c
 
 ### Credits & Footnotes
 
-- Visible Light Spectrum to RGB: [Endolith](https://www.endolith.com/wordpress/2010/09/15/a-mapping-between-musical-notes-and-colors/)
-- GUI built w/  [Dear ImGui](https://github.com/ocornut/imgui)
-- Lightweight FFT possible w/ [KissFFT](https://github.com/mborgerding/kissfft)
+- GUI built with [Dear ImGui](https://github.com/ocornut/imgui)
+- FFT made possible with [KissFFT](https://github.com/mborgerding/kissfft)
 
 > **⚠️ Warning:**<br>
-> This application may display rapidly changing colours when multiple frequencies are played. If you have photosensitive epilepsy, I strongly advise against using this application.
+> This application can display rapidly changing colours when multiple frequencies are played. If you have photosensitive epilepsy, I strongly advise against using this application.
 
 > **Note:**
-> This application is artistic in nature, and doesn't aim to replicate Synesthesia (Chromesthesia) or to be scientifically accurate.
-
-> If by chance you happen to have WiZ LED lights, I've made a GUI utility which syncs your screen to your LEDs via the network. [Check it out](https://github.com/jxckgan/wiz-eyedropper).
+> This application is artistic in nature, and doesn't aim to replicate Synesthesia (Chromesthesia) or to be 100% scientifically accurate.
