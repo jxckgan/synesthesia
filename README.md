@@ -53,7 +53,7 @@ Your executable will then be placed in the Release folder (placed at the root of
 
 ### Video Demo
 
-https://github.com/user-attachments/assets/f9064abc-8d23-4636-ae79-a315447b7a4c
+https://github.com/user-attachments/assets/f2d9a25c-81e7-4976-b707-c5cdb479754d
 
 ### Todo
 
