@@ -15,7 +15,6 @@ public:
         float L;
         float a;
         float b_comp;
-        double timestamp;
     };
 
     static constexpr float MIN_WAVELENGTH = 380.0f;
@@ -28,6 +27,8 @@ public:
     static ColourResult frequenciesToColour(
         const std::vector<float>& frequencies, 
         const std::vector<float>& magnitudes,
+        const std::vector<float>& spectralEnvelope = {},
+        float sampleRate = 44100.0f,
         float gamma = 0.8f);
 
     static float logFrequencyToWavelength(float freq);

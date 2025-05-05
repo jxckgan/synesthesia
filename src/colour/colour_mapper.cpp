@@ -3,6 +3,7 @@
 #include <cmath>
 #include <vector>
 #include <array>
+#include <numeric>
 
 void ColourMapper::interpolateCIE(float wavelength, float& X, float& Y, float& Z) {
     // Clamp wavelength to valid CIE 1931 range
@@ -11,15 +12,24 @@ void ColourMapper::interpolateCIE(float wavelength, float& X, float& Y, float& Z
     // Calculate index
     float indexFloat = (wavelength - 380.0f) / 5.0f;
     size_t index = static_cast<size_t>(std::floor(indexFloat));
-    index = std::min(index, CIE_TABLE_SIZE - 2);
+    
+    // Ensure index is within valid range
+    if (index >= CIE_TABLE_SIZE - 1) {
+        index = CIE_TABLE_SIZE - 2;
+    }
 
     const auto& entry0 = CIE_1931[index];
     const auto& entry1 = CIE_1931[index + 1];
 
     float lambda0 = entry0[0];
     float lambda1 = entry1[0];
-    float t = (lambda1 != lambda0) ? (wavelength - lambda0) / (lambda1 - lambda0) : 0.0f;
-    t = std::clamp(t, 0.0f, 1.0f);
+    
+    // Calculate interpolation factor
+    float t = 0.0f;
+    if (lambda1 > lambda0) {
+        t = (wavelength - lambda0) / (lambda1 - lambda0);
+        t = std::clamp(t, 0.0f, 1.0f);
+    }
     
     X = std::lerp(entry0[1], entry1[1], t);
     Y = std::lerp(entry0[2], entry1[2], t);
@@ -64,14 +74,14 @@ void ColourMapper::RGBtoXYZ(float r, float g, float b, float& X, float& Y, float
 
 // Convert XYZ to Lab colour space
 void ColourMapper::XYZtoLab(float X, float Y, float Z, float& L, float& a, float& b) {
-    // Prevent division by zero
-    const float epsilon = 0.008856f;
-    const float kappa = 903.3f;
+    // Constants for Lab conversion
+    const float epsilon = 0.008856f;  // (6/29)^3
+    const float kappa = 903.3f;       // 116/delta^3, where delta = 6/29
     
-    // Normalise XYZ by reference white point
-    float xr = X / (REF_X + epsilon);
-    float yr = Y / (REF_Y + epsilon);
-    float zr = Z / (REF_Z + epsilon);
+    // Normalise by white point
+    float xr = (REF_X > 0.0f) ? X / REF_X : 0.0f;
+    float yr = (REF_Y > 0.0f) ? Y / REF_Y : 0.0f;
+    float zr = (REF_Z > 0.0f) ? Z / REF_Z : 0.0f;
     
     // Apply nonlinear compression
     auto f = [epsilon, kappa](float t) {
@@ -168,110 +178,310 @@ float ColourMapper::logFrequencyToWavelength(float freq) {
 }
 
 ColourMapper::ColourResult ColourMapper::frequenciesToColour(
-    const std::vector<float>& frequencies, const std::vector<float>& magnitudes, 
+    const std::vector<float>& frequencies, 
+    const std::vector<float>& magnitudes,
+    const std::vector<float>& spectralEnvelope,
+    float sampleRate,
     float gamma)
 {
     // Default dark result for no input
     ColourResult result {0.1f, 0.1f, 0.1f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f};
     
     // Validate inputs
-    if (frequencies.empty() || magnitudes.empty()) {
+    bool hasPeaks = !frequencies.empty() && !magnitudes.empty();
+    bool hasEnvelope = !spectralEnvelope.empty() && sampleRate > 0.0f;
+    
+    if (!hasPeaks && !hasEnvelope) {
         return result;
     }
-
-    size_t count = std::min(frequencies.size(), magnitudes.size());
-    std::vector<float> weights(count, 0.0f);
-    float totalWeight = 0.0f;
     
-    size_t validCount = 0;
-    float maxValidMagnitude = 0.0f;
+    // Calculate colour from dominant frequencies if available
+    ColourResult peakResult {0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f};
+    bool hasPeakColour = false;
+    
+    if (hasPeaks) {
+        size_t count = std::min(frequencies.size(), magnitudes.size());
+        std::vector<float> weights(count, 0.0f);
+        float totalWeight = 0.0f;
+        
+        size_t validCount = 0;
+        float maxValidMagnitude = 0.0f;
+        float maxFrequency = 0.0f;
+        float maxWeight = 0.0f;
 
-    // Validate data and find max magnitude for normalisation
-    for (size_t i = 0; i < count; ++i) {
-        if (!std::isfinite(frequencies[i]) || !std::isfinite(magnitudes[i]) || 
-            frequencies[i] <= 0.0f || magnitudes[i] < 0.0f) {
-            continue;
+        // Validate data and find max magnitude for normalisation
+        for (size_t i = 0; i < count; ++i) {
+            if (!std::isfinite(frequencies[i]) || !std::isfinite(magnitudes[i]) || 
+                frequencies[i] <= 0.0f || magnitudes[i] < 0.0f) {
+                continue;
+            }
+            
+            validCount++;
+            maxValidMagnitude = std::max(maxValidMagnitude, magnitudes[i]);
         }
         
-        validCount++;
-        maxValidMagnitude = std::max(maxValidMagnitude, magnitudes[i]);
+        // If we have valid peaks, calculate colour
+        if (validCount > 0 && maxValidMagnitude > 0.0f) {
+            // Use magnitudes directly as weights without perceptual weighting
+            for (size_t i = 0; i < count; ++i) {
+                if (!std::isfinite(frequencies[i]) || !std::isfinite(magnitudes[i]) || 
+                    frequencies[i] <= 0.0f || magnitudes[i] < 0.0f) {
+                    continue;
+                }
+                
+                float freq = frequencies[i];
+                float mag = magnitudes[i];
+                
+                weights[i] = mag;
+                totalWeight += mag;
+                
+                if (mag > maxWeight) {
+                    maxWeight = mag;
+                    maxFrequency = freq;
+                }
+            }
+
+            if (totalWeight > 0.0f) {
+                // Work in LAB space for better perceptual blending
+                float L_blend = 0.0f;
+                float a_blend = 0.0f;
+                float b_blend = 0.0f;
+                float dominantWavelength = logFrequencyToWavelength(maxFrequency);
+
+                // Convert each frequency to a colour and accumulate in Lab space
+                for (size_t i = 0; i < count; ++i) {
+                    if (weights[i] <= 0.0f) continue;
+                    
+                    float weight = weights[i] / totalWeight;
+                    float wavelength = logFrequencyToWavelength(frequencies[i]);
+                    
+                    // Get colour in RGB
+                    float r, g, b;
+                    wavelengthToRGBCIE(wavelength, r, g, b);
+                    
+                    // Convert to Lab for perceptual blending
+                    float L, a, b_comp;
+                    RGBtoLab(r, g, b, L, a, b_comp);
+                    
+                    // Weighted contribution to final colour
+                    L_blend += L * weight;
+                    a_blend += a * weight;
+                    b_blend += b_comp * weight;
+                }
+
+                // Convert blended Lab back to RGB
+                LabtoRGB(L_blend, a_blend, b_blend, peakResult.r, peakResult.g, peakResult.b);
+                
+                peakResult.dominantWavelength = dominantWavelength;
+                peakResult.dominantFrequency = maxFrequency;
+                peakResult.L = L_blend;
+                peakResult.a = a_blend;
+                peakResult.b_comp = b_blend;
+                
+                hasPeakColour = true;
+            }
+        }
     }
     
-    // Early return if no valid data
-    if (validCount == 0 || maxValidMagnitude <= 0.0f) {
-        return result;
-    }
-
-    // Normalise weighting
-    for (size_t i = 0; i < count; ++i) {
-        if (!std::isfinite(frequencies[i]) || !std::isfinite(magnitudes[i]) || 
-            frequencies[i] <= 0.0f || magnitudes[i] < 0.0f) {
-            continue;
-        }
-        
-        float weight = magnitudes[i];
-        weights[i] = weight;
-        totalWeight += weight;
-    }
-
-    if (totalWeight <= 0.0f) {
-        return result;
-    }
-
-    // Work in LAB space for better perceptual blending
-    float L_blend = 0.0f;
-    float a_blend = 0.0f;
-    float b_blend = 0.0f;
+    // Calculate colour from spectral envelope if available
+    ColourResult envelopeResult {0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f};
+    bool hasEnvelopeColour = false;
     
-    float maxComponent = 0.0f;
-    float dominantWavelength = 0.0f;
-    float dominantFrequency = 0.0f;
+    if (hasEnvelope) {
+        const size_t binCount = spectralEnvelope.size();
+        
+        // Create frequency and weight arrays for the spectral envelope
+        std::vector<float> envelopeFrequencies;
+        std::vector<float> envelopeWeights;
+        envelopeFrequencies.reserve(binCount);
+        envelopeWeights.reserve(binCount);
+        
+        // Calculate weighted centroid to find dominant frequency
+        float totalEnvelopeWeight = 0.0f;
+        float weightedFreqSum = 0.0f;
+        float maxEnvelopeWeight = 0.0f;
+        float dominantEnvelopeFreq = 0.0f;
+        
+        // First pass: collect valid data and calculate basic statistics
+        for (size_t i = 0; i < binCount; ++i) {
+            float freq = (static_cast<float>(i) * sampleRate) / (2.0f * (binCount - 1));
+            
+            // Only process bins within our frequency range of interest
+            if (freq < MIN_FREQ || freq > MAX_FREQ || !std::isfinite(freq)) {
+                continue;
+            }
+            
+            float weight = spectralEnvelope[i];
+            if (!std::isfinite(weight) || weight <= 0.0f) {
+                continue;
+            }
+            
+            // Use raw magnitudes without perceptual weighting
+            float perceptualWeight = weight;
+            
+            // Store frequency and its weighted magnitude
+            envelopeFrequencies.push_back(freq);
+            envelopeWeights.push_back(perceptualWeight);
+            
+            // Update statistics
+            totalEnvelopeWeight += perceptualWeight;
+            weightedFreqSum += freq * perceptualWeight;
+            
+            if (perceptualWeight > maxEnvelopeWeight) {
+                maxEnvelopeWeight = perceptualWeight;
+                dominantEnvelopeFreq = freq;
+            }
+        }
+        
+        if (!envelopeFrequencies.empty() && totalEnvelopeWeight > 0.0f) {
+            // Calculate spectral centroid
+            float spectralCentroid = weightedFreqSum / totalEnvelopeWeight;
+            
+            // Calculate spectral spread
+            float spread = 0.0f;
+            for (size_t i = 0; i < envelopeFrequencies.size(); ++i) {
+                float diff = envelopeFrequencies[i] - spectralCentroid;
+                spread += envelopeWeights[i] * diff * diff;
+            }
+            spread = std::sqrt(spread / totalEnvelopeWeight);
+            
+            // Calculate spectral flatness
+            float logSum = 0.0f;
+            int validBins = 0;
+            for (size_t i = 0; i < envelopeWeights.size(); ++i) {
+                if (envelopeWeights[i] > 1e-6f) {
+                    logSum += std::log(envelopeWeights[i]);
+                    validBins++;
+                }
+            }
+            
+            float spectralFlatness = 0.5f;
+            if (validBins > 0) {
+                float geometricMean = std::exp(logSum / validBins);
+                float arithmeticMean = totalEnvelopeWeight / validBins;
+                
+                if (arithmeticMean > 1e-10f) {
+                    spectralFlatness = geometricMean / arithmeticMean;
+                }
+            }
+            
+            for (size_t i = 0; i < envelopeWeights.size(); ++i) {
+                envelopeWeights[i] /= totalEnvelopeWeight;
+            }
+            
+            float L_envelope = 0.0f;
+            float a_envelope = 0.0f;
+            float b_envelope = 0.0f;
+            float dominantWavelength = logFrequencyToWavelength(dominantEnvelopeFreq);
+            
+            for (size_t i = 0; i < envelopeFrequencies.size(); ++i) {
+                float weight = envelopeWeights[i];
+                if (weight <= 0.0f) continue;
+                
+                // Convert frequency to wavelength
+                float wavelength = logFrequencyToWavelength(envelopeFrequencies[i]);
+                
+                // Get colour in RGB
+                float r, g, b;
+                wavelengthToRGBCIE(wavelength, r, g, b);
+                
+                // Convert to Lab for perceptual blending
+                float L, a, b_comp;
+                RGBtoLab(r, g, b, L, a, b_comp);
+                
+                // Enhance saturation based on spectral characteristics
+                float saturationBoost = 1.0f + (1.0f - std::min(spectralFlatness * 2.0f, 1.0f));
+                a *= saturationBoost;
+                b_comp *= saturationBoost;
+                
+                // Adjust brightness based on spectral centroid
+                float centroidFactor = std::clamp(std::log2(spectralCentroid / MIN_FREQ) / 
+                                               std::log2(MAX_FREQ / MIN_FREQ), 0.0f, 1.0f);
+                L = std::lerp(L, std::min(L * 1.2f, 100.0f), centroidFactor);
+                
+                // Weighted contribution to final colour
+                L_envelope += L * weight;
+                a_envelope += a * weight;
+                b_envelope += b_comp * weight;
+            }
 
-    // Convert each frequency a colour and accumulate in Lab space
-    for (size_t i = 0; i < count; ++i) {
-        if (weights[i] <= 0.0f) continue;
-        
-        float weight = weights[i] / totalWeight;
-        float wavelength = logFrequencyToWavelength(frequencies[i]);
-        
-        // Get colour in RGB
-        float r, g, b;
-        wavelengthToRGBCIE(wavelength, r, g, b);
-        
-        // Convert to Lab for perceptual blending
-        float L, a, b_comp;
-        RGBtoLab(r, g, b, L, a, b_comp);
-        
-        // Weighted contribution to final colour
-        L_blend += L * weight;
-        a_blend += a * weight;
-        b_blend += b_comp * weight;
-
-        if (weight > maxComponent) {
-            maxComponent = weight;
-            dominantWavelength = wavelength;
-            dominantFrequency = frequencies[i];
+            // Convert blended Lab back to RGB
+            LabtoRGB(L_envelope, a_envelope, b_envelope, envelopeResult.r, envelopeResult.g, envelopeResult.b);
+            
+            envelopeResult.dominantWavelength = dominantWavelength;
+            envelopeResult.dominantFrequency = dominantEnvelopeFreq;
+            envelopeResult.L = L_envelope;
+            envelopeResult.a = a_envelope;
+            envelopeResult.b_comp = b_envelope;
+            
+            hasEnvelopeColour = true;
         }
     }
-
-    // Convert blended Lab back to RGB
-    LabtoRGB(L_blend, a_blend, b_blend, result.r, result.g, result.b);
+    
+    // Blend results based on spectral characteristics
+    if (hasPeakColour && hasEnvelopeColour) {
+        float blendFactor = 0.5f;
+        
+        if (hasEnvelope) {
+            // Calculate spectral flatness
+            std::vector<float> validValues;
+            validValues.reserve(spectralEnvelope.size());
+            
+            for (float value : spectralEnvelope) {
+                if (value > 1e-6f) {
+                    validValues.push_back(value);
+                }
+            }
+            
+            float spectralFlatness = 0.5f;
+            if (!validValues.empty()) {
+                float logSum = 0.0f;
+                for (float value : validValues) {
+                    logSum += std::log(value);
+                }
+                
+                float geometricMean = std::exp(logSum / validValues.size());
+                float arithmeticMean = std::accumulate(validValues.begin(), validValues.end(), 0.0f) / validValues.size();
+                
+                if (arithmeticMean > 1e-10f) {
+                    spectralFlatness = geometricMean / arithmeticMean;
+                }
+            }
+            
+            // For tonal sounds, prefer peak-based colour
+            blendFactor = std::clamp(spectralFlatness, 0.0f, 1.0f);
+        }
+        
+        // Blend in Lab space
+        result.L = std::lerp(peakResult.L, envelopeResult.L, blendFactor);
+        result.a = std::lerp(peakResult.a, envelopeResult.a, blendFactor);
+        result.b_comp = std::lerp(peakResult.b_comp, envelopeResult.b_comp, blendFactor);
+        
+        // Convert back to RGB
+        LabtoRGB(result.L, result.a, result.b_comp, result.r, result.g, result.b);
+        
+        // Choose dominant frequency based on which method likely provides better data
+        if (blendFactor < 0.5f) {
+            result.dominantFrequency = peakResult.dominantFrequency;
+            result.dominantWavelength = peakResult.dominantWavelength;
+        } else {
+            result.dominantFrequency = envelopeResult.dominantFrequency;
+            result.dominantWavelength = envelopeResult.dominantWavelength;
+        }
+    } else if (hasPeakColour) {
+        result = peakResult;
+    } else if (hasEnvelopeColour) {
+        result = envelopeResult;
+    }
     
     // Apply gamma scaling
     gamma = std::clamp(gamma, 0.1f, 5.0f);
+    
     result.r = std::pow(std::clamp(result.r, 0.0f, 1.0f), gamma);
     result.g = std::pow(std::clamp(result.g, 0.0f, 1.0f), gamma);
     result.b = std::pow(std::clamp(result.b, 0.0f, 1.0f), gamma);
 
-    // Store physical properties
-    result.dominantWavelength = dominantWavelength;
-    result.dominantFrequency = dominantFrequency;
     result.colourIntensity = 0.2126f*result.r + 0.7152f*result.g + 0.0722f*result.b;
     
-    // Store Lab components
-    result.L = L_blend;
-    result.a = a_blend;
-    result.b_comp = b_blend;
-
     return result;
 }

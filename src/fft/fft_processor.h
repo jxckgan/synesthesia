@@ -14,7 +14,7 @@ public:
     static constexpr float MIN_FREQ = 20.0f;
     static constexpr float MAX_FREQ = 20000.0f;
     static constexpr int MAX_HARMONIC = 8;
-    static constexpr int MAX_PEAKS = 3;
+    static constexpr int MAX_PEAKS = 100;
 
     struct FrequencyPeak {
         float frequency;
@@ -32,6 +32,7 @@ public:
     void processBuffer(const std::span<const float> buffer, float sampleRate);
     std::vector<FrequencyPeak> getDominantFrequencies() const;
     std::vector<float> getMagnitudesBuffer() const;
+    std::vector<float> getSpectralEnvelope() const;
     float getCurrentLoudness() const;
     void reset();
     void setEQGains(float low, float mid, float high);
@@ -46,6 +47,7 @@ private:
 
     std::vector<float> hannWindow;
     std::vector<float> magnitudesBuffer;
+    std::vector<float> spectralEnvelope;
 
     std::chrono::steady_clock::time_point lastValidPeakTime;
     static constexpr std::chrono::milliseconds PEAK_RETENTION_TIME{100};
@@ -64,7 +66,8 @@ private:
     void findFrequencyPeaks(float sampleRate);
     float interpolateFrequency(int bin, float sampleRate) const;
     float calculateNoiseFloor(const std::vector<float>& magnitudes) const;
-    bool isHarmonic(float testFreq, float baseFreq) const;
+    bool isHarmonic(float testFreq, float baseFreq, float threshold = 0.03f) const;
+    float calculateSpectralFlatness(const std::vector<float>& magnitudes) const;
     
     void calculateMagnitudes(std::vector<float>& rawMagnitudes, float sampleRate, 
                             float& maxMagnitude, float& totalEnergy);

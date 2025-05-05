@@ -105,8 +105,24 @@ void AudioProcessor::processBuffer(const AudioBuffer& buffer) {
                 break;
             }
         }
-        if (!foundMatch) {
-            peaks.push_back({zcFreq, 1.0f});
+        
+        if (!foundMatch && peaks.size() < FFTProcessor::MAX_PEAKS) {
+            // Estimate magnitude based on zero-crossing density
+            float zcDensity = zeroCrossingDetector.getZeroCrossingDensity();
+            float estimatedMagnitude = std::min(1.0f, zcDensity / 1000.0f);
+            
+            peaks.push_back({zcFreq, estimatedMagnitude});
+            
+            // Sort peaks by magnitude
+            std::sort(peaks.begin(), peaks.end(),
+                [](const FFTProcessor::FrequencyPeak& a, const FFTProcessor::FrequencyPeak& b) {
+                    return a.magnitude > b.magnitude;
+                });
+                
+            // Keep only the top peaks
+            if (peaks.size() > FFTProcessor::MAX_PEAKS) {
+                peaks.resize(FFTProcessor::MAX_PEAKS);
+            }
         }
     }
     

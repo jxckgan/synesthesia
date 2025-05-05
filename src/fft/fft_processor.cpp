@@ -14,6 +14,7 @@ FFTProcessor::FFTProcessor()
     , fft_out(FFT_SIZE / 2 + 1)
     , hannWindow(FFT_SIZE)
     , magnitudesBuffer(FFT_SIZE / 2 + 1, 0.0f)
+    , spectralEnvelope(FFT_SIZE / 2 + 1, 0.0f)
     , lastValidPeakTime(std::chrono::steady_clock::now())
     , lowGain(1.0f)
     , midGain(1.0f)
@@ -85,13 +86,18 @@ std::vector<FFTProcessor::FrequencyPeak> FFTProcessor::getDominantFrequencies() 
     return currentPeaks;
 }
 
+std::vector<float> FFTProcessor::getSpectralEnvelope() const {
+    std::lock_guard<std::mutex> lock(peaksMutex);
+    return spectralEnvelope;
+}
+
 std::vector<float> FFTProcessor::getMagnitudesBuffer() const {
     std::lock_guard<std::mutex> lock(peaksMutex);
     return magnitudesBuffer;
 }
 
 void FFTProcessor::processMagnitudes(std::vector<float>& magnitudes, float sampleRate, float maxMagnitude) {
-    float normalizationFactor = (maxMagnitude > 1e-6f) ? 1.0f / maxMagnitude : 1.0f;
+    float normalisationFactor = (maxMagnitude > 1e-6f) ? 1.0f / maxMagnitude : 1.0f;
     float currentLowGain, currentMidGain, currentHighGain;
     {
         std::lock_guard<std::mutex> gainsLock(gainsMutex);
@@ -100,23 +106,57 @@ void FFTProcessor::processMagnitudes(std::vector<float>& magnitudes, float sampl
         currentHighGain = highGain;
     }
     
-    for (size_t i = 0; i < fft_out.size(); ++i) {
-        float freq = (static_cast<float>(i) * sampleRate) / FFT_SIZE;
-        if (freq < MIN_FREQ || freq > MAX_FREQ) continue;
-
+    std::fill(spectralEnvelope.begin(), spectralEnvelope.end(), 0.0f);
+    
+    // Calculate bin frequency limit indices
+    const size_t minBinIndex = static_cast<size_t>(MIN_FREQ * FFT_SIZE / sampleRate);
+    const size_t maxBinIndex = std::min(static_cast<size_t>(MAX_FREQ * FFT_SIZE / sampleRate) + 1, fft_out.size() - 1);
+    float totalEnergy = 0.0f;
+    for (size_t i = minBinIndex; i <= maxBinIndex; ++i) {
         // Calculate raw magnitude
-        float normalisedMagnitude = std::hypot(fft_out[i].r, fft_out[i].i) * normalizationFactor;
+        float rawMagnitude = std::hypot(fft_out[i].r, fft_out[i].i);
+        float energy = rawMagnitude * rawMagnitude;
+        spectralEnvelope[i] = energy;
+        totalEnergy += energy;
+    }
+    
+    // Normalise the spectral envelope by energy
+    if (totalEnergy > 1e-6f) {
+        for (size_t i = minBinIndex; i <= maxBinIndex; ++i) {
+            spectralEnvelope[i] /= totalEnergy;
+        }
+    }
+    
+    // Apply mel-frequency weighting to spectral envelope
+    for (size_t i = minBinIndex; i <= maxBinIndex; ++i) {
+        float freq = (static_cast<float>(i) * sampleRate) / FFT_SIZE;
         
-        // Frequency band splitting with clamped gains
-        float lowResponse = (freq <= 200.0f) ? 1.0f :
-                          (freq < 250.0f ? (250.0f - freq) / 50.0f : 0.0f);
-        float highResponse = (freq >= 2000.0f) ? 1.0f :
-                           (freq > 1900.0f ? (freq - 1900.0f) / 100.0f : 0.0f);
-        float midResponse = (freq >= 250.0f && freq <= 1900.0f) ? 1.0f :
-                         (freq > 200.0f && freq < 250.0f ? (freq - 200.0f) / 50.0f :
-                         (freq > 1900.0f && freq < 2000.0f ? (2000.0f - freq) / 100.0f : 0.0f));
+        // Convert to mel scale (emphasizes lower frequencies)
+        float melFactor = 1.0f + 2.0f * (1.0f - std::min(1.0f, freq / 1000.0f));
+        spectralEnvelope[i] *= melFactor;
+    }
+    
+    // Re-normalise after mel weighting
+    float maxEnvelope = *std::max_element(spectralEnvelope.begin(), spectralEnvelope.end());
+    if (maxEnvelope > 1e-6f) {
+        for (size_t i = 0; i < spectralEnvelope.size(); ++i) {
+            spectralEnvelope[i] /= maxEnvelope;
+        }
+    }
+    
+    // Process magnitudes with EQ
+    for (size_t i = minBinIndex; i <= maxBinIndex; ++i) {
+        float freq = (static_cast<float>(i) * sampleRate) / FFT_SIZE;
 
-        // Perceptual Hearing
+        // Calculate raw magnitude with normalisation
+        float normalisedMagnitude = std::hypot(fft_out[i].r, fft_out[i].i) * normalisationFactor;
+        
+        // Frequency band splitting
+        float lowResponse = std::clamp(1.0f - std::max(0.0f, (freq - 200.0f) / 50.0f), 0.0f, 1.0f);
+        float highResponse = std::clamp((freq - 1900.0f) / 100.0f, 0.0f, 1.0f);
+        float midResponse = std::clamp(1.0f - lowResponse - highResponse, 0.0f, 1.0f);
+
+        // Perceptual Hearing curve
         float f2 = freq * freq;
         float numerator = 12200.0f * 12200.0f * f2 * f2;
         float denominator = (f2 + 20.6f * 20.6f) * 
@@ -148,7 +188,7 @@ void FFTProcessor::calculateMagnitudes(std::vector<float>& rawMagnitudes, float 
         float freq = (static_cast<float>(i) * sampleRate) / FFT_SIZE;
         if (freq < MIN_FREQ || freq > MAX_FREQ) continue;
 
-        // Calculate raw magnitude without normalization
+        // Calculate raw magnitude without normalisation
         float magnitude = std::hypot(fft_out[i].r, fft_out[i].i);
         rawMagnitudes[i] = magnitude;
         totalEnergy += magnitude * magnitude;
@@ -157,17 +197,69 @@ void FFTProcessor::calculateMagnitudes(std::vector<float>& rawMagnitudes, float 
 }
 
 void FFTProcessor::findPeaks(float sampleRate, float noiseFloor, std::vector<FrequencyPeak>& peaks) {
-    for (size_t i = 2; i < magnitudesBuffer.size() - 1; ++i) {
+    std::vector<FrequencyPeak> candidatePeaks;
+    for (size_t i = 2; i < magnitudesBuffer.size() - 2; ++i) {
         if (magnitudesBuffer[i] > noiseFloor &&
             magnitudesBuffer[i] > magnitudesBuffer[i - 1] &&
-            magnitudesBuffer[i] > magnitudesBuffer[i + 1])
+            magnitudesBuffer[i] > magnitudesBuffer[i - 2] &&
+            magnitudesBuffer[i] > magnitudesBuffer[i + 1] &&
+            magnitudesBuffer[i] > magnitudesBuffer[i + 2])
         {
             float freq = interpolateFrequency(static_cast<int>(i), sampleRate);
             if (freq >= MIN_FREQ && freq <= MAX_FREQ) {
-                peaks.push_back({freq, magnitudesBuffer[i]});
+                candidatePeaks.push_back({freq, magnitudesBuffer[i]});
             }
         }
     }
+    
+    // Sort candidates by magnitude
+    std::sort(candidatePeaks.begin(), candidatePeaks.end(),
+              [](const FrequencyPeak& a, const FrequencyPeak& b) {
+                  return a.magnitude > b.magnitude;
+              });
+              
+    // Calculate spectral flatness to determine if the sound is tonal
+    float spectralFlatness = calculateSpectralFlatness(magnitudesBuffer);
+    float harmonic_threshold = spectralFlatness < 0.2f ? 0.15f : 0.5f;
+    
+    // Add peaks (removing harmonics based on our adaptive threshold)
+    for (const auto& candidate : candidatePeaks) {
+        if (peaks.size() >= MAX_PEAKS) break;
+
+        bool isHarmonicFlag = false;
+        for (const auto& existing : peaks) {
+            if (isHarmonic(candidate.frequency, existing.frequency, harmonic_threshold)) {
+                isHarmonicFlag = true;
+                break;
+            }
+        }
+        
+        if (!isHarmonicFlag) {
+            peaks.push_back(candidate);
+        }
+    }
+}
+
+float FFTProcessor::calculateSpectralFlatness(const std::vector<float>& magnitudes) const {
+    float geometricMean = 0.0f;
+    float arithmeticMean = 0.0f;
+    int count = 0;
+    
+    for (size_t i = 0; i < magnitudes.size(); ++i) {
+        float mag = magnitudes[i];
+        if (mag > 1e-6f) {
+            geometricMean += std::log(mag);
+            arithmeticMean += mag;
+            count++;
+        }
+    }
+    
+    if (count == 0 || arithmeticMean < 1e-6f) return 1.0f;
+    
+    geometricMean = std::exp(geometricMean / count);
+    arithmeticMean /= count;
+    
+    return geometricMean / arithmeticMean;
 }
 
 void FFTProcessor::findFrequencyPeaks(float sampleRate) {
@@ -204,34 +296,12 @@ void FFTProcessor::findFrequencyPeaks(float sampleRate) {
     std::vector<FrequencyPeak> rawPeaks;
     findPeaks(sampleRate, noiseFloor, rawPeaks);
 
-    // Sort and filter peaks
-    std::sort(rawPeaks.begin(), rawPeaks.end(),
-              [](const FrequencyPeak& a, const FrequencyPeak& b) {
-                  return a.magnitude > b.magnitude;
-              });
-
     // Lock for updating shared data
     std::lock_guard<std::mutex> lock(peaksMutex);
     
-    // Filter harmonics and update peaks
-    std::vector<FrequencyPeak> newPeaks;
-    for (const auto& peak : rawPeaks) {
-        if (newPeaks.size() >= MAX_PEAKS) break;
-        bool isHarmonicFlag = false;
-        for (const auto& existing : newPeaks) {
-            if (isHarmonic(peak.frequency, existing.frequency)) {
-                isHarmonicFlag = true;
-                break;
-            }
-        }
-        if (!isHarmonicFlag) {
-            newPeaks.push_back(peak);
-        }
-    }
-
     const auto now = std::chrono::steady_clock::now();
-    if (!newPeaks.empty()) {
-        currentPeaks = std::move(newPeaks);
+    if (!rawPeaks.empty()) {
+        currentPeaks = std::move(rawPeaks);
         retainedPeaks = currentPeaks;
         lastValidPeakTime = now;
     } else if (now - lastValidPeakTime < PEAK_RETENTION_TIME) {
@@ -239,11 +309,12 @@ void FFTProcessor::findFrequencyPeaks(float sampleRate) {
     }
 }
 
-bool FFTProcessor::isHarmonic(float testFreq, float baseFreq) const {
+bool FFTProcessor::isHarmonic(float testFreq, float baseFreq, float threshold) const {
     if (baseFreq <= 0.0f || testFreq <= 0.0f)
         return false;
         
-    float toleranceHz = std::max(3.0f, baseFreq * 0.03f);
+    float toleranceHz = std::max(3.0f, baseFreq * threshold);
+    
     for (int h = 2; h <= MAX_HARMONIC; ++h) {
         float expectedHarmonic = baseFreq * h;
         if (std::abs(testFreq - expectedHarmonic) < toleranceHz)
@@ -308,5 +379,6 @@ void FFTProcessor::reset() {
     currentPeaks.clear();
     retainedPeaks.clear();
     std::fill(magnitudesBuffer.begin(), magnitudesBuffer.end(), 0.0f);
+    std::fill(spectralEnvelope.begin(), spectralEnvelope.end(), 0.0f);
     lastValidPeakTime = std::chrono::steady_clock::now();
 }

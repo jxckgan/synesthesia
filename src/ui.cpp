@@ -137,7 +137,13 @@ void updateUI(AudioInput &audioInput,
             }
         }
 
-        auto colourResult = ColourMapper::frequenciesToColour(freqs, mags, gamma);
+        auto colourResult = ColourMapper::frequenciesToColour(
+            freqs,
+            mags,
+            {},
+            44100.0f,
+            gamma
+        );
 
         // Blend colour with white based on transients
         colourResult.r = colourResult.r * (1.0f - whiteMix) + whiteMix;
@@ -261,17 +267,15 @@ void updateUI(AudioInput &audioInput,
                  auto currentColourResult = ColourMapper::frequenciesToColour(
                      [&peaks](){ std::vector<float> f; for(const auto& p : peaks) f.push_back(p.frequency); return f; }(),
                      [&peaks](){ std::vector<float> m; for(const auto& p : peaks) m.push_back(p.magnitude); return m; }(),
+                     {},
+                     44100.0f,
                      0.8f
                  );
 
                 if (!peaks.empty()) {
                     ImGui::Text("Dominant: %.1f Hz", peaks[0].frequency);
                     ImGui::Text("Wavelength: %.1f nm", currentColourResult.dominantWavelength);
-
-                    const int MAX_PEAKS_TO_SHOW = 3;
-                    for (size_t i = 0; i < std::min(peaks.size(), static_cast<size_t>(MAX_PEAKS_TO_SHOW)); ++i) {
-                        ImGui::Text("Peak %d: %.1f Hz", static_cast<int>(i) + 1, peaks[i].frequency);
-                    }
+                    ImGui::Text("Number of peaks detected: %d", static_cast<int>(peaks.size()));
                 } else {
                     ImGui::TextDisabled("No significant frequencies");
                 }
