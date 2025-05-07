@@ -8,6 +8,7 @@
 struct UIState {
     bool showUI = true;
     int selectedDeviceIndex = -1;
+    int selectedChannelIndex = 0;
     bool streamError = false;
     std::string streamErrorMessage;
 
@@ -29,6 +30,7 @@ struct UIState {
     bool styleApplied = false;
 
     std::vector<const char*> deviceNames;
+    std::vector<const char*> channelNames;
     bool deviceNamesPopulated = false;
 };
 

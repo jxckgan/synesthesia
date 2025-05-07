@@ -9,7 +9,6 @@
 #include <algorithm>
 #include <cmath>
 
-// Apply custom theme
 void applyCustomUIStyle(ImGuiStyle& style, UIState& state) {
     if (!state.styleApplied) {
         state.originalStyle = style;
@@ -17,34 +16,45 @@ void applyCustomUIStyle(ImGuiStyle& style, UIState& state) {
     }
 
     ImVec4* colours = style.Colors;
-
     style.WindowRounding = 0.0f;
-    style.FrameRounding = 3.0f;
-    style.ScrollbarRounding = 2.0f;
-    style.GrabRounding = 3.0f;
+    style.FrameRounding = 1.0f;
+    style.ScrollbarRounding = 5.0f;
+    style.GrabRounding = 1.0f;
+    style.TabRounding = 1.0f;
+    style.ChildRounding = 1.0f;
+    style.PopupRounding = 1.0f;
     style.Alpha = 1.0f;
-    style.ItemSpacing = ImVec2(8, 10);
-    style.FramePadding = ImVec2(6, 4);
-    colours[ImGuiCol_WindowBg]         = ImVec4(0.06f, 0.06f, 0.06f, 0.96f);
-    colours[ImGuiCol_Border]           = ImVec4(0.30f, 0.30f, 0.30f, 0.30f);
-    colours[ImGuiCol_FrameBg]          = ImVec4(0.20f, 0.20f, 0.22f, 1.00f);
-    colours[ImGuiCol_FrameBgHovered]   = ImVec4(0.28f, 0.28f, 0.30f, 1.00f);
-    colours[ImGuiCol_FrameBgActive]    = ImVec4(0.35f, 0.35f, 0.37f, 1.00f);
-    colours[ImGuiCol_TitleBg]          = ImVec4(0.05f, 0.05f, 0.05f, 1.00f);
-    colours[ImGuiCol_TitleBgActive]    = ImVec4(0.07f, 0.07f, 0.07f, 1.00f);
-    colours[ImGuiCol_SliderGrab]       = ImVec4(0.65f, 0.65f, 0.65f, 1.00f);
-    colours[ImGuiCol_SliderGrabActive] = ImVec4(0.80f, 0.80f, 0.80f, 1.00f);
-    colours[ImGuiCol_Button]           = ImVec4(0.25f, 0.25f, 0.27f, 1.00f);
-    colours[ImGuiCol_ButtonHovered]    = ImVec4(0.35f, 0.35f, 0.37f, 1.00f);
-    colours[ImGuiCol_ButtonActive]     = ImVec4(0.45f, 0.45f, 0.47f, 1.00f);
-    colours[ImGuiCol_Header]           = ImVec4(0.20f, 0.20f, 0.22f, 1.00f);
-    colours[ImGuiCol_HeaderHovered]    = ImVec4(0.28f, 0.28f, 0.30f, 1.00f);
-    colours[ImGuiCol_HeaderActive]     = ImVec4(0.35f, 0.35f, 0.37f, 1.00f);
-    colours[ImGuiCol_CheckMark]        = ImVec4(0.9f, 0.9f, 0.9f, 1.00f);
-    colours[ImGuiCol_Text]             = ImVec4(0.9f, 0.9f, 0.9f, 1.00f);
-    colours[ImGuiCol_TextDisabled]     = ImVec4(0.6f, 0.6f, 0.6f, 1.00f);
-    colours[ImGuiCol_PopupBg]          = ImVec4(0.1f, 0.1f, 0.1f, 0.94f);
-    colours[ImGuiCol_Border]           = ImVec4(0.4f, 0.4f, 0.4f, 0.5f);
+    style.ItemSpacing = ImVec2(10, 12);
+    style.FramePadding = ImVec2(8, 6);
+    style.WindowPadding = ImVec2(12, 12);
+    
+    colours[ImGuiCol_WindowBg]         = ImVec4(0.06f, 0.06f, 0.07f, 0.90f);
+    colours[ImGuiCol_Border]           = ImVec4(0.40f, 0.40f, 0.45f, 0.50f);
+    colours[ImGuiCol_BorderShadow]     = ImVec4(0.00f, 0.00f, 0.00f, 0.00f);
+    colours[ImGuiCol_FrameBg]          = ImVec4(0.15f, 0.15f, 0.17f, 0.85f);
+    colours[ImGuiCol_FrameBgHovered]   = ImVec4(0.20f, 0.20f, 0.22f, 0.90f);
+    colours[ImGuiCol_FrameBgActive]    = ImVec4(0.25f, 0.25f, 0.27f, 0.95f);
+    colours[ImGuiCol_TitleBg]          = ImVec4(0.05f, 0.05f, 0.05f, 0.90f);
+    colours[ImGuiCol_TitleBgActive]    = ImVec4(0.10f, 0.10f, 0.12f, 0.90f);
+    colours[ImGuiCol_TitleBgCollapsed] = ImVec4(0.05f, 0.05f, 0.05f, 0.75f);
+    colours[ImGuiCol_SliderGrab]       = ImVec4(0.65f, 0.65f, 0.70f, 0.80f);
+    colours[ImGuiCol_SliderGrabActive] = ImVec4(0.80f, 0.80f, 0.85f, 0.90f);
+    colours[ImGuiCol_Button]           = ImVec4(0.20f, 0.20f, 0.22f, 0.75f);
+    colours[ImGuiCol_ButtonHovered]    = ImVec4(0.30f, 0.30f, 0.35f, 0.85f);
+    colours[ImGuiCol_ButtonActive]     = ImVec4(0.40f, 0.40f, 0.45f, 0.90f);
+    colours[ImGuiCol_Header]           = ImVec4(0.20f, 0.20f, 0.22f, 0.70f);
+    colours[ImGuiCol_HeaderHovered]    = ImVec4(0.30f, 0.30f, 0.35f, 0.85f);
+    colours[ImGuiCol_HeaderActive]     = ImVec4(0.40f, 0.40f, 0.45f, 0.70f);
+    colours[ImGuiCol_ScrollbarBg]      = ImVec4(0.07f, 0.07f, 0.09f, 0.00f);
+    colours[ImGuiCol_ScrollbarGrab]    = ImVec4(0.35f, 0.35f, 0.40f, 0.70f);
+
+    colours[ImGuiCol_ScrollbarGrabHovered] = ImVec4(0.45f, 0.45f, 0.50f, 0.80f);
+    colours[ImGuiCol_ScrollbarGrabActive]  = ImVec4(0.55f, 0.55f, 0.60f, 0.85f);
+    
+    colours[ImGuiCol_CheckMark]        = ImVec4(0.90f, 0.90f, 0.95f, 1.00f);
+    colours[ImGuiCol_Text]             = ImVec4(0.95f, 0.95f, 0.95f, 1.00f);
+    colours[ImGuiCol_TextDisabled]     = ImVec4(0.65f, 0.65f, 0.65f, 0.80f);
+    colours[ImGuiCol_PopupBg]          = ImVec4(0.12f, 0.12f, 0.14f, 0.90f);
 }
 
 void restoreOriginalStyle(ImGuiStyle& style, UIState& state) {
@@ -88,6 +98,9 @@ void updateUI(AudioInput &audioInput,
     const float SIDEBAR_PADDING = 16.0f;
     const float contentWidth = SIDEBAR_WIDTH - (SIDEBAR_PADDING * 2);
 
+    float gamma = 0.8f;
+    float whiteMix = 0.0f;
+
     // Process audio data and updates visuals when a device is selected
     if (state.selectedDeviceIndex >= 0) {
         auto peaks = audioInput.getFrequencyPeaks();
@@ -97,44 +110,6 @@ void updateUI(AudioInput &audioInput,
         for (const auto &peak : peaks) {
             freqs.push_back(peak.frequency);
             mags.push_back(peak.magnitude);
-        }
-
-        // Calculate dynamic gamma (which is based on loudness)
-        float gamma = 0.8f;
-        float whiteMix = 0.0f;
-
-        if (state.dynamicGammaEnabled) {
-            constexpr float smoothingFactor = 0.9f;
-            constexpr float transientDecay = 0.92f;
-            constexpr float transientSensitivity = 4.0f;
-            float rawLoudness = audioInput.getFFTProcessor().getCurrentLoudness();
-
-            // Apply a low-pass filter (to smooth out the loudness)
-            state.smoothedLoudness = (smoothingFactor * state.smoothedLoudness) + ((1.0f - smoothingFactor) * rawLoudness);
-            float deltaLoudness = state.smoothedLoudness - state.previousLoudness;
-            state.previousLoudness = state.smoothedLoudness;
-
-            // Only consider positive spikes
-            float transientDelta = std::max(deltaLoudness, 0.0f);
-            state.transientIntensity = std::clamp(
-                (state.transientIntensity * transientDecay) + (transientDelta * transientSensitivity),
-                0.0f, 1.0f
-            );
-
-            // Gamma calculation based on transient intensity
-            constexpr float baseGamma = 1.5f;
-            constexpr float minGamma = 0.15f;
-            float gammaRange = baseGamma - minGamma;
-
-            float normalisedTransient = std::pow(state.transientIntensity, 0.75f);
-            gamma = baseGamma - (gammaRange * normalisedTransient);
-            gamma = std::clamp(gamma, minGamma, baseGamma);
-
-            float whiteIntensity = std::pow(state.transientIntensity, 1.5f);
-            whiteMix = std::clamp(whiteIntensity * 2.5f, 0.0f, 0.85f);
-            if (state.transientIntensity > 0.9f) {
-                whiteMix = std::clamp(whiteMix * 1.5f, 0.0f, 1.0f);
-            }
         }
 
         auto colourResult = ColourMapper::frequenciesToColour(
@@ -230,7 +205,20 @@ void updateUI(AudioInput &audioInput,
         if (!state.deviceNames.empty()) {
             if (ImGui::Combo("##device", &state.selectedDeviceIndex, state.deviceNames.data(), static_cast<int>(state.deviceNames.size()))) {
                 if (state.selectedDeviceIndex >= 0 && static_cast<size_t>(state.selectedDeviceIndex) < devices.size()) {
-                    bool success = audioInput.initStream(devices[state.selectedDeviceIndex].paIndex);
+                    // Clear previous channel names
+                    state.channelNames.clear();
+                    
+                    // Get max channels for this device
+                    int maxChannels = devices[state.selectedDeviceIndex].maxChannels;
+                    
+                    // Reset selected channel
+                    state.selectedChannelIndex = 0;
+                    
+                    // Initialise with all available channels
+                    int channelsToUse = std::min(maxChannels, 16);
+                    
+                    // Start the stream with all available channels
+                    bool success = audioInput.initStream(devices[state.selectedDeviceIndex].paIndex, channelsToUse);
                     if (!success) {
                         state.streamError = true;
                         state.streamErrorMessage = "Error opening device!";
@@ -241,11 +229,26 @@ void updateUI(AudioInput &audioInput,
                         state.previousLoudness = 0.0f;
                         state.transientIntensity = 0.0f;
                         state.smoothedLoudness = 0.0f;
+                        
+                        // Create channel name list
+                        static std::vector<std::string> channelNameStrings;
+                        channelNameStrings.clear();
+                        channelNameStrings.reserve(channelsToUse);
+                        
+                        for (int i = 0; i < channelsToUse; i++) {
+                            channelNameStrings.push_back("Channel " + std::to_string(i + 1));
+                        }
+                        
+                        // Update channel name pointers 
+                        state.channelNames.reserve(channelsToUse);
+                        for (const auto& name : channelNameStrings) {
+                            state.channelNames.push_back(name.c_str());
+                        }
                     }
                 } else {
-                     state.streamError = true;
-                     state.streamErrorMessage = "Invalid device selection index.";
-                     state.selectedDeviceIndex = -1;
+                    state.streamError = true;
+                    state.streamErrorMessage = "Invalid device selection index.";
+                    state.selectedDeviceIndex = -1;
                 }
             }
             if (state.streamError) {
@@ -261,6 +264,18 @@ void updateUI(AudioInput &audioInput,
         // Only shows controls if a device is successfully selected
         if (state.selectedDeviceIndex >= 0 && !state.streamError)
         {
+            if (state.selectedDeviceIndex >= 0 && !state.streamError && !state.channelNames.empty() && 
+                devices[state.selectedDeviceIndex].maxChannels > 2) {
+                ImGui::Text("CHANNEL");
+                ImGui::SetNextItemWidth(-FLT_MIN);
+                if (ImGui::Combo("##channel", &state.selectedChannelIndex, state.channelNames.data(), 
+                                static_cast<int>(state.channelNames.size()))) {
+                    // Update the active channel in the audio input
+                    audioInput.setActiveChannel(state.selectedChannelIndex);
+                }
+                ImGui::Spacing();
+            }
+
             if (ImGui::CollapsingHeader("FREQUENCY INFO", ImGuiTreeNodeFlags_DefaultOpen)) {
                 ImGui::Indent(10);
                  auto peaks = audioInput.getFrequencyPeaks();
@@ -284,14 +299,8 @@ void updateUI(AudioInput &audioInput,
                 ImGui::Spacing();
             }
 
-            if (ImGui::CollapsingHeader("COLOUR SETTINGS", ImGuiTreeNodeFlags_DefaultOpen)) {
+            if (ImGui::CollapsingHeader("VISUALISER SETTINGS", ImGuiTreeNodeFlags_DefaultOpen)) {
                 ImGui::Indent(10);
-
-                ImGui::AlignTextToFramePadding();
-                ImGui::Text("Dynamic Gamma");
-                ImGui::SameLine(SIDEBAR_PADDING + LABEL_WIDTH);
-                ImGui::SetCursorPosX(SIDEBAR_WIDTH - SIDEBAR_PADDING - 20);
-                ImGui::Checkbox("##DynamicGamma", &state.dynamicGammaEnabled);
 
                 ImGui::AlignTextToFramePadding();
                 ImGui::Text("Smoothing");

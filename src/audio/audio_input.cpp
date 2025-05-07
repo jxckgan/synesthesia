@@ -7,11 +7,14 @@
 AudioInput::AudioInput() 
     : stream(nullptr)
     , sampleRate(44100.0f)
-    , previousInput(0.0f)
-    , previousOutput(0.0f)
+    , channelCount(1)
+    , activeChannel(0)
     , noiseGateThreshold(0.0001f)
     , dcRemovalAlpha(0.995f)
 {
+    previousInputs.push_back(0.0f);
+    previousOutputs.push_back(0.0f);
+    
     PaError err = Pa_Initialize();
     if (err != paNoError) {
         throw std::runtime_error("PortAudio initialization failed: " + 
@@ -42,7 +45,11 @@ std::vector<AudioInput::DeviceInfo> AudioInput::getInputDevices() {
     for (int i = 0; i < deviceCount; ++i) {
         if (const PaDeviceInfo* deviceInfo = Pa_GetDeviceInfo(i)) {
             if (deviceInfo->maxInputChannels > 0) {
-                devices.emplace_back(DeviceInfo{deviceInfo->name, i});
+                devices.emplace_back(DeviceInfo{
+                    deviceInfo->name, 
+                    i, 
+                    deviceInfo->maxInputChannels
+                });
             }
         } else {
             std::cerr << "Warning: Failed to get device info for device index " << i << "\n";
@@ -52,7 +59,7 @@ std::vector<AudioInput::DeviceInfo> AudioInput::getInputDevices() {
 }
 
 // Initialises the audio stream for a specified device index
-bool AudioInput::initStream(int deviceIndex) {
+bool AudioInput::initStream(int deviceIndex, int numChannels) {
     stopStream();
 
     const PaDeviceInfo* deviceInfo = Pa_GetDeviceInfo(deviceIndex);
@@ -61,9 +68,20 @@ bool AudioInput::initStream(int deviceIndex) {
         return false;
     }
 
+    // Ensure we don't request more channels than available
+    channelCount = std::min(numChannels, deviceInfo->maxInputChannels);
+    if (channelCount < 1) channelCount = 1;
+    
+    // Reset active channel
+    activeChannel = 0;
+    
+    // Resize DC removal buffers for each channel
+    previousInputs.resize(channelCount, 0.0f);
+    previousOutputs.resize(channelCount, 0.0f);
+
     PaStreamParameters inputParameters{};
     inputParameters.device = deviceIndex;
-    inputParameters.channelCount = 1;
+    inputParameters.channelCount = channelCount;
     inputParameters.sampleFormat = paFloat32;
     inputParameters.suggestedLatency = deviceInfo->defaultLowInputLatency;
     inputParameters.hostApiSpecificStreamInfo = nullptr;
@@ -98,6 +116,7 @@ bool AudioInput::initStream(int deviceIndex) {
 
     return true;
 }
+
 
 // Maps the current dominant frequency to a colour
 void AudioInput::getColourForCurrentFrequency(float& r, float& g, float& b, float& freq, float& wavelength) {
@@ -139,14 +158,26 @@ int AudioInput::audioCallback(const void* input, void* output,
             processedBuffer.resize(frameCount);
         }
 
-        // Apply DC removal and noise gate
-        for (unsigned long i = 0; i < frameCount; ++i) {
-            float sample = inBuffer[i];
+        // Get the active channel the user has selected
+        int activeChannel = audio->activeChannel;
+        int channelCount = audio->channelCount;
+        
+        // Ensure active channel is valid
+        if (activeChannel >= channelCount) {
+            activeChannel = 0;
+            audio->activeChannel = 0;
+        }
 
-            // DC Offset Removal
-            float filteredSample = sample - audio->previousInput + audio->dcRemovalAlpha * audio->previousOutput;
-            audio->previousInput = sample;
-            audio->previousOutput = filteredSample;
+        // Apply DC removal and noise gate for the active channel
+        for (unsigned long i = 0; i < frameCount; ++i) {
+            // Get sample from the specific channel
+            float sample = inBuffer[i * channelCount + activeChannel];
+
+            // DC Offset Removal for the active channel
+            float filteredSample = sample - audio->previousInputs[activeChannel] + 
+                              audio->dcRemovalAlpha * audio->previousOutputs[activeChannel];
+            audio->previousInputs[activeChannel] = sample;
+            audio->previousOutputs[activeChannel] = filteredSample;
 
             // Noise Gate
             if (std::abs(filteredSample) < audio->noiseGateThreshold) {
