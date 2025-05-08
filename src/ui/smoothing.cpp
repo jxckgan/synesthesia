@@ -2,12 +2,12 @@
 #include "colour_mapper.h"
 #include <algorithm>
 
-SpringSmoother::SpringSmoother(float stiffness, float damping, float mass)
+SpringSmoother::SpringSmoother(const float stiffness, const float damping, const float mass)
     : m_stiffness(stiffness), m_damping(damping), m_mass(mass), m_rgbCacheDirty(true)
 {
     // Initialise all Lab channels to default values
     for (int i = 0; i < 3; ++i) {
-        m_channels[i].position = (i == 0) ? 50.0f : 0.0f;
+        m_channels[i].position = i == 0 ? 50.0f : 0.0f;
         m_channels[i].velocity = 0.0f;
         m_channels[i].targetPosition = m_channels[i].position;
     }
@@ -16,7 +16,7 @@ SpringSmoother::SpringSmoother(float stiffness, float damping, float mass)
     m_currentRGB[0] = m_currentRGB[1] = m_currentRGB[2] = 0.5f; // Neutral gray
 }
 
-void SpringSmoother::reset(float r, float g, float b)
+void SpringSmoother::reset(const float r, const float g, const float b)
 {
     // Convert RGB to Lab for internal representation
     float L, a, b_comp;
@@ -28,8 +28,8 @@ void SpringSmoother::reset(float r, float g, float b)
     m_channels[2].position = m_channels[2].targetPosition = b_comp;
     
     // Reset velocities
-    for (int i = 0; i < 3; ++i) {
-        m_channels[i].velocity = 0.0f;
+    for (auto & m_channel : m_channels) {
+        m_channel.velocity = 0.0f;
     }
     
     // Store RGB directly to avoid immediate recalculation
@@ -39,7 +39,7 @@ void SpringSmoother::reset(float r, float g, float b)
     m_rgbCacheDirty = false;
 }
 
-void SpringSmoother::setTargetColour(float r, float g, float b)
+void SpringSmoother::setTargetColour(const float r, const float g, const float b)
 {
     // Convert RGB to Lab space for internal target representation
     float L, a, b_comp;
@@ -54,22 +54,21 @@ void SpringSmoother::setTargetColour(float r, float g, float b)
 bool SpringSmoother::update(float deltaTime)
 {
     // Apply spring physics to each Lab channel
-    const float MIN_DELTA = 0.0001f;
     bool significantMovement = false;
     
     // Limit max delta time to prevent instability
     deltaTime = std::min(deltaTime, 0.05f);
     
     for (int i = 0; i < 3; ++i) {
-        float displacement = m_channels[i].position - m_channels[i].targetPosition;
-        float springForce = -m_stiffness * displacement;
-        float dampingForce = -m_damping * m_channels[i].velocity;
-        float acceleration = (springForce + dampingForce) / m_mass;
+        const float displacement = m_channels[i].position - m_channels[i].targetPosition;
+        const float springForce = -m_stiffness * displacement;
+        const float dampingForce = -m_damping * m_channels[i].velocity;
+        const float acceleration = (springForce + dampingForce) / m_mass;
         
-        float previousVelocity = m_channels[i].velocity;
+        const float previousVelocity = m_channels[i].velocity;
         m_channels[i].velocity += acceleration * deltaTime;
         
-        float previousPosition = m_channels[i].position;
+        const float previousPosition = m_channels[i].position;
         m_channels[i].position += m_channels[i].velocity * deltaTime;
         
         // Apply constraints appropriate to each Lab component
@@ -81,10 +80,10 @@ bool SpringSmoother::update(float deltaTime)
         }
         
         // Check if significant change occurred
-        float positionDelta = std::abs(m_channels[i].position - previousPosition);
-        float velocityDelta = std::abs(m_channels[i].velocity - previousVelocity);
+        const float positionDelta = std::abs(m_channels[i].position - previousPosition);
+        const float velocityDelta = std::abs(m_channels[i].velocity - previousVelocity);
         
-        if (positionDelta > MIN_DELTA || velocityDelta > MIN_DELTA) {
+        if (constexpr float MIN_DELTA = 0.0001f; positionDelta > MIN_DELTA || velocityDelta > MIN_DELTA) {
             significantMovement = true;
         }
     }
@@ -148,8 +147,8 @@ void SpringSmoother::setSmoothingAmount(float smoothingAmount)
     
     // Map 0-1 to appropriate spring stiffness range
     // Using exponential mapping for better control feel
-    const float MIN_STIFFNESS = 8.0f;
-    const float MAX_STIFFNESS = 120.0f;
+    constexpr float MIN_STIFFNESS = 8.0f;
+    constexpr float MAX_STIFFNESS = 120.0f;
     
     m_stiffness = MIN_STIFFNESS * std::pow(MAX_STIFFNESS / MIN_STIFFNESS, smoothingAmount);
     
@@ -164,12 +163,12 @@ void SpringSmoother::setSmoothingAmount(float smoothingAmount)
 float SpringSmoother::getSmoothingAmount() const
 {
     // Convert from spring parameters back to 0-1 range
-    const float MIN_STIFFNESS = 8.0f;
-    const float MAX_STIFFNESS = 120.0f;
+    constexpr float MIN_STIFFNESS = 8.0f;
+    constexpr float MAX_STIFFNESS = 120.0f;
 
-    float logMin = std::log(MIN_STIFFNESS);
-    float logMax = std::log(MAX_STIFFNESS);
-    float logCurrent = std::log(m_stiffness);
+    const float logMin = std::log(MIN_STIFFNESS);
+    const float logMax = std::log(MAX_STIFFNESS);
+    const float logCurrent = std::log(m_stiffness);
     
     return std::clamp((logCurrent - logMin) / (logMax - logMin), 0.0f, 1.0f);
 }

@@ -1,7 +1,6 @@
 #include "zero_crossing.h"
 #include <algorithm>
 #include <numeric>
-#include <cmath>
 
 ZeroCrossingDetector::ZeroCrossingDetector() 
     : sampleBuffer(BUFFER_SIZE, 0.0f)
@@ -14,17 +13,15 @@ ZeroCrossingDetector::ZeroCrossingDetector()
 {
 }
 
-void ZeroCrossingDetector::processSamples(const float* buffer, size_t numSamples, float rate) {
+void ZeroCrossingDetector::processSamples(const float *buffer, const size_t numSamples) {
     if (!buffer || numSamples == 0) return;
-    
-    sampleRate = rate;
-    
+
     // Count zero crossings
     size_t localCrossings = 0;
     float currentSample = lastSample;
     
     for (size_t i = 0; i < numSamples; ++i) {
-        float nextSample = buffer[i];
+        const float nextSample = buffer[i];
         if (currentSample <= 0.0f && nextSample > 0.0f) {
             localCrossings++;
         }
@@ -34,11 +31,11 @@ void ZeroCrossingDetector::processSamples(const float* buffer, size_t numSamples
     
     lastSample = currentSample;
     {
-        std::lock_guard<std::mutex> lock(bufferMutex);
+        std::lock_guard lock(bufferMutex);
         
         // Add new samples
         for (size_t i = 0; i < numSamples; ++i) {
-            size_t index = (sampleCount + i) % BUFFER_SIZE;
+            const size_t index = (sampleCount + i) % BUFFER_SIZE;
             sampleBuffer[index] = buffer[i];
         }
         
@@ -55,14 +52,14 @@ void ZeroCrossingDetector::analyseZeroCrossings() {
     if (sampleCount == 0) return;
     
     // Calculate crossing density
-    float timeSpan = static_cast<float>(sampleCount) / sampleRate;
-    float newDensity = static_cast<float>(zeroCrossings) / timeSpan;
+    const float timeSpan = static_cast<float>(sampleCount) / sampleRate;
+    const float newDensity = static_cast<float>(zeroCrossings) / timeSpan;
     
     // Smoothing
     zeroCrossingDensity = zeroCrossingDensity * 0.7f + newDensity * 0.3f;
     
     // Estimate frequency
-    float roughFreq = zeroCrossingDensity / 2.0f;
+    const float roughFreq = zeroCrossingDensity / 2.0f;
     
     // Refine the frequency
     std::vector<float> periods;
@@ -72,16 +69,14 @@ void ZeroCrossingDetector::analyseZeroCrossings() {
     bool foundFirst = false;
     
     for (size_t i = 1; i < BUFFER_SIZE; ++i) {
-        float current = sampleBuffer[i];
-        float previous = sampleBuffer[i-1];
-        
-        if (previous <= 0.0f && current > 0.0f) {
-            float t = -previous / (current - previous);
-            float exactPosition = static_cast<float>(i - 1) + t;
+        const float current = sampleBuffer[i];
+
+        if (const float previous = sampleBuffer[i-1]; previous <= 0.0f && current > 0.0f) {
+            const float t = -previous / (current - previous);
+            const float exactPosition = static_cast<float>(i - 1) + t;
             
             if (foundFirst) {
-                float period = (exactPosition - prevCrossing) / sampleRate;
-                if (period > MIN_PERIOD && period < MAX_PERIOD) {
+                if (float period = (exactPosition - prevCrossing) / sampleRate; period > MIN_PERIOD && period < MAX_PERIOD) {
                     periods.push_back(period);
                 }
             }
@@ -93,12 +88,12 @@ void ZeroCrossingDetector::analyseZeroCrossings() {
     
     // Calculate median period
     if (!periods.empty()) {
-        size_t middle = periods.size() / 2;
-        std::nth_element(periods.begin(), periods.begin() + middle, periods.end());
-        float medianPeriod = periods[middle];
+        const size_t middle = periods.size() / 2;
+        std::ranges::nth_element(periods, periods.begin() + middle);
+        const float medianPeriod = periods[middle];
         
         // Convert period to frequency
-        float refinedFreq = 1.0f / medianPeriod;
+        const float refinedFreq = 1.0f / medianPeriod;
         
         // Apply smoothing for stable output
         estimatedFrequency = estimatedFrequency * 0.8f + refinedFreq * 0.2f;
@@ -111,19 +106,19 @@ void ZeroCrossingDetector::analyseZeroCrossings() {
 }
 
 float ZeroCrossingDetector::getEstimatedFrequency() const {
-    std::lock_guard<std::mutex> lock(bufferMutex);
+    std::lock_guard lock(bufferMutex);
     return estimatedFrequency;
 }
 
 float ZeroCrossingDetector::getZeroCrossingDensity() const {
-    std::lock_guard<std::mutex> lock(bufferMutex);
+    std::lock_guard lock(bufferMutex);
     return zeroCrossingDensity;
 }
 
 void ZeroCrossingDetector::reset() {
-    std::lock_guard<std::mutex> lock(bufferMutex);
+    std::lock_guard lock(bufferMutex);
     
-    std::fill(sampleBuffer.begin(), sampleBuffer.end(), 0.0f);
+    std::ranges::fill(sampleBuffer, 0.0f);
     lastSample = 0.0f;
     estimatedFrequency = 0.0f;
     zeroCrossingDensity = 0.0f;

@@ -2,13 +2,12 @@
 
 #include <vector>
 #include <mutex>
-#include <atomic>
 
 class ZeroCrossingDetector {
 public:
     ZeroCrossingDetector();
     
-    void processSamples(const float* buffer, size_t numSamples, float sampleRate);
+    void processSamples(const float *buffer, size_t numSamples);
     float getEstimatedFrequency() const;
     float getZeroCrossingDensity() const;
     void reset();

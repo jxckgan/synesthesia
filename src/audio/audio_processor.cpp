@@ -25,7 +25,7 @@ void AudioProcessor::start() {
 void AudioProcessor::stop() {
     if (!running.exchange(false)) return;
     {
-        std::lock_guard<std::mutex> lock(queueMutex);
+        std::lock_guard lock(queueMutex);
         dataAvailable.notify_one();
     }
 
@@ -34,12 +34,12 @@ void AudioProcessor::stop() {
     }
 }
 
-void AudioProcessor::queueAudioData(const float* buffer, size_t numSamples, float sampleRate) {
+void AudioProcessor::queueAudioData(const float* buffer, const size_t numSamples, const float sampleRate) {
     if (!buffer || numSamples == 0 || !running) return;
     
     // Calculate next write position
-    size_t currentWrite = writeIndex.load(std::memory_order_relaxed);
-    size_t nextWrite = (currentWrite + 1) % QUEUE_SIZE;
+    const size_t currentWrite = writeIndex.load(std::memory_order_relaxed);
+    const size_t nextWrite = (currentWrite + 1) % QUEUE_SIZE;
     
     if (nextWrite == readIndex.load(std::memory_order_acquire)) {
         return;
@@ -49,12 +49,12 @@ void AudioProcessor::queueAudioData(const float* buffer, size_t numSamples, floa
     AudioBuffer& queuedBuffer = audioQueue[currentWrite];
     queuedBuffer.sampleRate = sampleRate;
     queuedBuffer.sampleCount = std::min(numSamples, MAX_SAMPLES);
-    std::copy(buffer, buffer + queuedBuffer.sampleCount, queuedBuffer.data.begin());
+    std::copy_n(buffer, queuedBuffer.sampleCount, queuedBuffer.data.begin());
     
     // Update write index
     writeIndex.store(nextWrite, std::memory_order_release);
     {
-        std::lock_guard<std::mutex> lock(queueMutex);
+        std::lock_guard lock(queueMutex);
         dataAvailable.notify_one();
     }
 }
@@ -62,7 +62,7 @@ void AudioProcessor::queueAudioData(const float* buffer, size_t numSamples, floa
 void AudioProcessor::processingThreadFunc() {
     while (running) {
         // Wait for data or shutdown signal
-        std::unique_lock<std::mutex> lock(queueMutex);
+        std::unique_lock lock(queueMutex);
         dataAvailable.wait(lock, [this] {
             return !running || readIndex.load(std::memory_order_relaxed) != 
                               writeIndex.load(std::memory_order_relaxed);
@@ -74,7 +74,7 @@ void AudioProcessor::processingThreadFunc() {
         
         // Process available buffers
         while (running) {
-            size_t currentRead = readIndex.load(std::memory_order_relaxed);
+            const size_t currentRead = readIndex.load(std::memory_order_relaxed);
             if (currentRead == writeIndex.load(std::memory_order_acquire)) {
                 break;
             }
@@ -87,19 +87,17 @@ void AudioProcessor::processingThreadFunc() {
 
 void AudioProcessor::processBuffer(const AudioBuffer& buffer) {
     // Process with both FFT and zero-crossing detector
-    fftProcessor.processBuffer(std::span<const float>(buffer.data.data(), buffer.sampleCount), buffer.sampleRate);
-    zeroCrossingDetector.processSamples(buffer.data.data(), buffer.sampleCount, buffer.sampleRate);
+    fftProcessor.processBuffer(std::span(buffer.data.data(), buffer.sampleCount), buffer.sampleRate);
+    zeroCrossingDetector.processSamples(buffer.data.data(), buffer.sampleCount);
     
     // Get new frequency peaks
     std::vector<FFTProcessor::FrequencyPeak> peaks = fftProcessor.getDominantFrequencies();
     
     // Check for valid frequency
-    float zcFreq = zeroCrossingDetector.getEstimatedFrequency();
-    if (zcFreq > 20.0f && zcFreq < 20000.0f) {
+    if (const float zcFreq = zeroCrossingDetector.getEstimatedFrequency(); zcFreq > 20.0f && zcFreq < 20000.0f) {
         bool foundMatch = false;
         for (auto& peak : peaks) {
-            float freqRatio = peak.frequency / zcFreq;
-            if (freqRatio > 0.95f && freqRatio < 1.05f) {
+            if (const float freqRatio = peak.frequency / zcFreq; freqRatio > 0.95f && freqRatio < 1.05f) {
                 peak.frequency = zcFreq;
                 foundMatch = true;
                 break;
@@ -108,16 +106,16 @@ void AudioProcessor::processBuffer(const AudioBuffer& buffer) {
         
         if (!foundMatch && peaks.size() < FFTProcessor::MAX_PEAKS) {
             // Estimate magnitude based on zero-crossing density
-            float zcDensity = zeroCrossingDetector.getZeroCrossingDensity();
-            float estimatedMagnitude = std::min(1.0f, zcDensity / 1000.0f);
+            const float zcDensity = zeroCrossingDetector.getZeroCrossingDensity();
+            const float estimatedMagnitude = std::min(1.0f, zcDensity / 1000.0f);
             
             peaks.push_back({zcFreq, estimatedMagnitude});
             
             // Sort peaks by magnitude
-            std::sort(peaks.begin(), peaks.end(),
-                [](const FFTProcessor::FrequencyPeak& a, const FFTProcessor::FrequencyPeak& b) {
-                    return a.magnitude > b.magnitude;
-                });
+            std::ranges::sort(peaks,
+                              [](const FFTProcessor::FrequencyPeak& a, const FFTProcessor::FrequencyPeak& b) {
+                                  return a.magnitude > b.magnitude;
+                              });
                 
             // Keep only the top peaks
             if (peaks.size() > FFTProcessor::MAX_PEAKS) {
@@ -135,20 +133,20 @@ void AudioProcessor::processBuffer(const AudioBuffer& buffer) {
     
     // Update results
     {
-        std::lock_guard<std::mutex> lock(resultsMutex);
+        std::lock_guard lock(resultsMutex);
         currentPeaks = peaks;
         currentColour = ColourMapper::frequenciesToColour(freqs, mags);
-        currentDominantFrequency = (!peaks.empty()) ? peaks[0].frequency : 0.0f;
+        currentDominantFrequency = !peaks.empty() ? peaks[0].frequency : 0.0f;
     }
 }
 
 std::vector<FFTProcessor::FrequencyPeak> AudioProcessor::getFrequencyPeaks() const {
-    std::lock_guard<std::mutex> lock(resultsMutex);
+    std::lock_guard lock(resultsMutex);
     return currentPeaks;
 }
 
-void AudioProcessor::getColourForCurrentFrequency(float& r, float& g, float& b, float& freq, float& wavelength) {
-    std::lock_guard<std::mutex> lock(resultsMutex);
+void AudioProcessor::getColourForCurrentFrequency(float& r, float& g, float& b, float& freq, float& wavelength) const {
+    std::lock_guard lock(resultsMutex);
     r = currentColour.r;
     g = currentColour.g;
     b = currentColour.b;
@@ -156,7 +154,7 @@ void AudioProcessor::getColourForCurrentFrequency(float& r, float& g, float& b, 
     wavelength = currentColour.dominantWavelength;
 }
 
-void AudioProcessor::setEQGains(float low, float mid, float high) {
+void AudioProcessor::setEQGains(const float low, const float mid, const float high) {
     fftProcessor.setEQGains(low, mid, high);
 }
 
@@ -164,7 +162,7 @@ void AudioProcessor::reset() {
     fftProcessor.reset();
     zeroCrossingDetector.reset();
     
-    std::lock_guard<std::mutex> lock(resultsMutex);
+    std::lock_guard lock(resultsMutex);
     currentColour = {0.1f, 0.1f, 0.1f, 0.0f};
     currentDominantFrequency = 0.0f;
     currentPeaks.clear();

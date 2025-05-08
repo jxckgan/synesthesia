@@ -91,18 +91,14 @@ void updateUI(AudioInput &audioInput,
     colourSmoother.setSmoothingAmount(smoothingAmount);
 
     // Define UI layout measurements
-    const float LABEL_WIDTH = 90.0f;
-    const float CONTROL_WIDTH = 150.0f;
-    const float BUTTON_HEIGHT = 25.0f;
-    const float SIDEBAR_WIDTH = 280.0f;
-    const float SIDEBAR_PADDING = 16.0f;
-    const float contentWidth = SIDEBAR_WIDTH - (SIDEBAR_PADDING * 2);
-
-    float gamma = 0.8f;
-    float whiteMix = 0.0f;
+    constexpr float SIDEBAR_WIDTH = 280.0f;
+    constexpr float SIDEBAR_PADDING = 16.0f;
+    constexpr float contentWidth = SIDEBAR_WIDTH - SIDEBAR_PADDING * 2;
 
     // Process audio data and updates visuals when a device is selected
     if (state.selectedDeviceIndex >= 0) {
+        float whiteMix = 0.0f;
+        float gamma = 0.8f;
         auto peaks = audioInput.getFrequencyPeaks();
         std::vector<float> freqs, mags;
         freqs.reserve(peaks.size());
@@ -218,8 +214,7 @@ void updateUI(AudioInput &audioInput,
                     int channelsToUse = std::min(maxChannels, 16);
                     
                     // Start the stream with all available channels
-                    bool success = audioInput.initStream(devices[state.selectedDeviceIndex].paIndex, channelsToUse);
-                    if (!success) {
+                    if (bool success = audioInput.initStream(devices[state.selectedDeviceIndex].paIndex, channelsToUse); !success) {
                         state.streamError = true;
                         state.streamErrorMessage = "Error opening device!";
                     } else {
@@ -264,6 +259,9 @@ void updateUI(AudioInput &audioInput,
         // Only shows controls if a device is successfully selected
         if (state.selectedDeviceIndex >= 0 && !state.streamError)
         {
+            constexpr float BUTTON_HEIGHT = 25.0f;
+            constexpr float CONTROL_WIDTH = 150.0f;
+            constexpr float LABEL_WIDTH = 90.0f;
             if (state.selectedDeviceIndex >= 0 && !state.streamError && !state.channelNames.empty() && 
                 devices[state.selectedDeviceIndex].maxChannels > 2) {
                 ImGui::Text("CHANNEL");
@@ -280,8 +278,10 @@ void updateUI(AudioInput &audioInput,
                 ImGui::Indent(10);
                  auto peaks = audioInput.getFrequencyPeaks();
                  auto currentColourResult = ColourMapper::frequenciesToColour(
-                     [&peaks](){ std::vector<float> f; for(const auto& p : peaks) f.push_back(p.frequency); return f; }(),
-                     [&peaks](){ std::vector<float> m; for(const auto& p : peaks) m.push_back(p.magnitude); return m; }(),
+                     [&peaks] { std::vector<float> f; f.reserve(peaks.size());
+for(const auto& p : peaks) f.push_back(p.frequency); return f; }(),
+                     [&peaks] { std::vector<float> m; m.reserve(peaks.size());
+for(const auto& p : peaks) m.push_back(p.magnitude); return m; }(),
                      {},
                      44100.0f,
                      0.8f
@@ -363,9 +363,8 @@ void updateUI(AudioInput &audioInput,
 
         float bottomTextHeight = ImGui::GetTextLineHeightWithSpacing() + 12;
         float currentCursorY = ImGui::GetCursorPosY();
-        float spaceToBottom = ImGui::GetWindowHeight() - currentCursorY - bottomTextHeight - style.WindowPadding.y;
 
-        if (spaceToBottom > 0.0f) {
+        if (float spaceToBottom = ImGui::GetWindowHeight() - currentCursorY - bottomTextHeight - style.WindowPadding.y; spaceToBottom > 0.0f) {
             ImGui::Dummy(ImVec2(0.0f, spaceToBottom));
         }
 
@@ -378,10 +377,10 @@ void updateUI(AudioInput &audioInput,
 
         // Spectrum Analyser window
         if (state.selectedDeviceIndex >= 0 && !state.streamError && state.showSpectrumAnalyser) {
-            const float spectrumHeight = 210.0f;
+            constexpr float spectrumHeight = 210.0f;
 
-            ImVec2 spectrumPos = ImVec2(0.0f, displaySize.y - spectrumHeight);
-            ImVec2 spectrumSize = ImVec2(displaySize.x - SIDEBAR_WIDTH, spectrumHeight);
+            auto spectrumPos = ImVec2(0.0f, displaySize.y - spectrumHeight);
+            auto spectrumSize = ImVec2(displaySize.x - SIDEBAR_WIDTH, spectrumHeight);
 
             ImGui::SetNextWindowPos(spectrumPos);
             ImGui::SetNextWindowSize(spectrumSize);
@@ -399,9 +398,9 @@ void updateUI(AudioInput &audioInput,
             // Normalise Y-Axis for spectrum dynamically
             float maxMagnitude = 0.0f;
             if (!state.smoothedMagnitudes.empty()){
-                maxMagnitude = *std::max_element(state.smoothedMagnitudes.begin(), state.smoothedMagnitudes.end());
+                maxMagnitude = *std::ranges::max_element(state.smoothedMagnitudes);
             }
-            float yMax = (maxMagnitude > 0.0001f) ? maxMagnitude * 1.1f : 0.1f;
+            float yMax = maxMagnitude > 0.0001f ? maxMagnitude * 1.1f : 0.1f;
 
             ImVec2 canvas_pos = ImGui::GetCursorScreenPos();
             ImVec2 canvas_size = ImGui::GetContentRegionAvail();
@@ -418,26 +417,24 @@ void updateUI(AudioInput &audioInput,
                  ImGui::ColorConvertFloat4ToU32(ImVec4(0.0f, 0.0f, 0.0f, 0.4f))
              );
 
-            const int lineCount = 500;
+            constexpr int lineCount = 500;
             std::vector<ImVec2> points(lineCount);
 
             float sampleRate = 44100.0f;
             if (state.selectedDeviceIndex >= 0 && static_cast<size_t>(state.selectedDeviceIndex) < devices.size()) {
-                 const PaDeviceInfo* deviceInfo = Pa_GetDeviceInfo(devices[state.selectedDeviceIndex].paIndex);
-                 if (deviceInfo) {
+                if (const PaDeviceInfo* deviceInfo = Pa_GetDeviceInfo(devices[state.selectedDeviceIndex].paIndex)) {
                      sampleRate = static_cast<float>(deviceInfo->defaultSampleRate);
                  }
             }
 
             const float binSize = sampleRate / FFTProcessor::FFT_SIZE;
-            const float minFreq = FFTProcessor::MIN_FREQ;
-            const float maxFreq = FFTProcessor::MAX_FREQ;
+            constexpr float minFreq = FFTProcessor::MIN_FREQ;
+            constexpr float maxFreq = FFTProcessor::MAX_FREQ;
             const float logMinFreq = std::log10(minFreq);
             const float logMaxFreq = std::log10(maxFreq);
-            const float logFreqRange = logMaxFreq - logMinFreq;
 
             // Fill point array with spectrum data using logarithmic scale
-             if (!state.smoothedMagnitudes.empty() && binSize > 0.0f && logFreqRange > 0.0f) {
+             if (const float logFreqRange = logMaxFreq - logMinFreq; !state.smoothedMagnitudes.empty() && binSize > 0.0f && logFreqRange > 0.0f) {
                 for (int i = 0; i < lineCount; ++i) {
                     // Calculate frequency for this point using logarithmic interpolation
                     float logPosition = static_cast<float>(i) / (lineCount - 1); // 0.0 to 1.0
@@ -458,10 +455,10 @@ void updateUI(AudioInput &audioInput,
                     float magnitude = state.smoothedMagnitudes[idx0] * (1.0f - t) + state.smoothedMagnitudes[idx1] * t;
 
                     // Calculate x position
-                    float xPos = canvas_pos.x + (static_cast<float>(i) / (lineCount - 1)) * canvas_size.x;
+                    float xPos = canvas_pos.x + static_cast<float>(i) / (lineCount - 1) * canvas_size.x;
 
                     // Calculate y position
-                    float height = (magnitude / yMax) * canvas_size.y * 0.7f;
+                    float height = magnitude / yMax * canvas_size.y * 0.7f;
                     height = std::min(height, canvas_size.y * 0.75f);
                     float yPos = canvas_pos.y + canvas_size.y - height;
 
@@ -469,9 +466,9 @@ void updateUI(AudioInput &audioInput,
                 }
 
                 // Apply smoothing to the calculated points
-                const int smoothingWindow = 7; // Must be odd
                 std::vector<float> smoothedYPositions(lineCount);
                  for (int i = 0; i < lineCount; ++i) {
+                     constexpr int smoothingWindow = 7;
                      float sum = 0.0f;
                      int count = 0;
                      int halfWindow = smoothingWindow / 2;
@@ -479,7 +476,7 @@ void updateUI(AudioInput &audioInput,
                          sum += points[j].y;
                          count++;
                      }
-                     smoothedYPositions[i] = (count > 0) ? (sum / count) : points[i].y; // Avoid division by zero
+                     smoothedYPositions[i] = count > 0 ? sum / count : points[i].y; // Avoid division by zero
                  }
 
                  for (int i = 0; i < lineCount; ++i) {
@@ -490,7 +487,7 @@ void updateUI(AudioInput &audioInput,
                 // Define colours for drawing
                 ImU32 fillColor = ImGui::ColorConvertFloat4ToU32(ImVec4(1.0f, 1.0f, 1.0f, 0.1f));
                 ImU32 lineColor = ImGui::ColorConvertFloat4ToU32(ImVec4(1.0f, 1.0f, 1.0f, 0.9f));
-                const float lineThickness = 1.5f;
+                constexpr float lineThickness = 1.5f;
 
                 // Fill area below the curve using quads
                 for (int i = 0; i < lineCount - 1; ++i) {

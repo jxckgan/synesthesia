@@ -4,7 +4,6 @@
 #include <atomic>
 #include <condition_variable>
 #include <vector>
-#include <queue>
 #include <mutex>
 #include "fft_processor.h"
 #include "zero_crossing.h"
@@ -18,7 +17,7 @@ public:
     void queueAudioData(const float* buffer, size_t numSamples, float sampleRate);
     
     std::vector<FFTProcessor::FrequencyPeak> getFrequencyPeaks() const;
-    void getColourForCurrentFrequency(float& r, float& g, float& b, float& freq, float& wavelength);
+    void getColourForCurrentFrequency(float& r, float& g, float& b, float& freq, float& wavelength) const;
     void setEQGains(float low, float mid, float high);
     void setNoiseGateThreshold(float threshold);
     void reset();

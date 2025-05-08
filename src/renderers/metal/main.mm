@@ -15,7 +15,7 @@
 #import <Metal/Metal.h>
 #import <QuartzCore/QuartzCore.h>
 
-#include <stdio.h>
+#include <cstdio>
 
 static void glfw_error_callback(int error, const char* description) {
     fprintf(stderr, "Glfw Error %d: %s\n", error, description);
@@ -63,7 +63,7 @@ int main(int, char**) {
     // Setup audio input (application logic)
     AudioInput audioInput;
     // Get list of available audio input devices
-    std::vector<AudioInput::DeviceInfo> devices = audioInput.getInputDevices();
+    std::vector<AudioInput::DeviceInfo> devices = AudioInput::getInputDevices();
 
     float clear_color[4] = {0.1f, 0.1f, 0.1f, 1.0f};
 

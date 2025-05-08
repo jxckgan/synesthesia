@@ -2,8 +2,6 @@
 
 #include <string>
 #include <vector>
-#include <mutex>
-#include <cmath>
 #include <portaudio.h>
 #include "audio_processor.h"
 
@@ -17,33 +15,33 @@ public:
 
     AudioInput();
     ~AudioInput();
-    
-    std::vector<DeviceInfo> getInputDevices();
+
+    static std::vector<DeviceInfo> getInputDevices();
     bool initStream(int deviceIndex, int numChannels = 1);
-    void getColourForCurrentFrequency(float& r, float& g, float& b, float& freq, float& wavelength);
+    void getColourForCurrentFrequency(float& r, float& g, float& b, float& freq, float& wavelength) const;
     std::vector<FFTProcessor::FrequencyPeak> getFrequencyPeaks() const;
     FFTProcessor& getFFTProcessor() { return processor.getFFTProcessor(); }
-    
-    void setNoiseGateThreshold(float threshold) { noiseGateThreshold = threshold; processor.setNoiseGateThreshold(threshold); }
-    void setDcRemovalAlpha(float alpha) { dcRemovalAlpha = alpha; }
-    void setEQGains(float low, float mid, float high) { processor.setEQGains(low, mid, high); }
-    
+
+    void setNoiseGateThreshold(const float threshold) { noiseGateThreshold = threshold; processor.setNoiseGateThreshold(threshold); }
+    void setDcRemovalAlpha(const float alpha) { dcRemovalAlpha = alpha; }
+    void setEQGains(const float low, const float mid, const float high) { processor.setEQGains(low, mid, high); }
+
     int getChannelCount() const { return channelCount; }
     int getActiveChannel() const { return activeChannel; }
-    void setActiveChannel(int channel) { activeChannel = (channel >= 0 && channel < channelCount) ? channel : 0; }
-    
+    void setActiveChannel(const int channel) { activeChannel = channel >= 0 && channel < channelCount ? channel : 0; }
+
 private:
     PaStream* stream;
     AudioProcessor processor;
     float sampleRate;
     int channelCount;
     int activeChannel;
-    
+
     std::vector<float> previousInputs;
     std::vector<float> previousOutputs;
     float noiseGateThreshold;
     float dcRemovalAlpha;
-    
+
     void stopStream();
     static int audioCallback(const void* input, void* output,
                              unsigned long frameCount,

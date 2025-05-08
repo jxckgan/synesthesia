@@ -1,10 +1,9 @@
 #include "audio_input.h"
 #include <algorithm>
-#include <cstdlib>
 #include <iostream>
 #include <stdexcept>
 
-AudioInput::AudioInput() 
+AudioInput::AudioInput()
     : stream(nullptr)
     , sampleRate(44100.0f)
     , channelCount(1)
@@ -14,20 +13,19 @@ AudioInput::AudioInput()
 {
     previousInputs.push_back(0.0f);
     previousOutputs.push_back(0.0f);
-    
-    PaError err = Pa_Initialize();
-    if (err != paNoError) {
-        throw std::runtime_error("PortAudio initialization failed: " + 
+
+    if (const PaError err = Pa_Initialize(); err != paNoError) {
+        throw std::runtime_error("PortAudio initialization failed: " +
             std::string(Pa_GetErrorText(err)));
     }
-    
+
     processor.start();
 }
 
 AudioInput::~AudioInput() {
     stopStream();
     Pa_Terminate();
-    
+
     processor.stop();
 }
 
@@ -35,9 +33,9 @@ AudioInput::~AudioInput() {
 std::vector<AudioInput::DeviceInfo> AudioInput::getInputDevices() {
     std::vector<DeviceInfo> devices;
     const int deviceCount = Pa_GetDeviceCount();
-    
+
     if (deviceCount < 0) {
-        throw std::runtime_error("Failed to get device count: " + 
+        throw std::runtime_error("Failed to get device count: " +
             std::string(Pa_GetErrorText(deviceCount)));
     }
 
@@ -46,20 +44,20 @@ std::vector<AudioInput::DeviceInfo> AudioInput::getInputDevices() {
         if (const PaDeviceInfo* deviceInfo = Pa_GetDeviceInfo(i)) {
             if (deviceInfo->maxInputChannels > 0) {
                 devices.emplace_back(DeviceInfo{
-                    deviceInfo->name, 
-                    i, 
+                    deviceInfo->name,
+                    i,
                     deviceInfo->maxInputChannels
                 });
             }
         } else {
             std::cerr << "Warning: Failed to get device info for device index " << i << "\n";
         }
-    }    
+    }
     return devices;
 }
 
 // Initialises the audio stream for a specified device index
-bool AudioInput::initStream(int deviceIndex, int numChannels) {
+bool AudioInput::initStream(const int deviceIndex, const int numChannels) {
     stopStream();
 
     const PaDeviceInfo* deviceInfo = Pa_GetDeviceInfo(deviceIndex);
@@ -71,10 +69,10 @@ bool AudioInput::initStream(int deviceIndex, int numChannels) {
     // Ensure we don't request more channels than available
     channelCount = std::min(numChannels, deviceInfo->maxInputChannels);
     if (channelCount < 1) channelCount = 1;
-    
+
     // Reset active channel
     activeChannel = 0;
-    
+
     // Resize DC removal buffers for each channel
     previousInputs.resize(channelCount, 0.0f);
     previousOutputs.resize(channelCount, 0.0f);
@@ -86,7 +84,7 @@ bool AudioInput::initStream(int deviceIndex, int numChannels) {
     inputParameters.suggestedLatency = deviceInfo->defaultLowInputLatency;
     inputParameters.hostApiSpecificStreamInfo = nullptr;
 
-    PaError err = Pa_OpenStream(
+    const PaError err = Pa_OpenStream(
         &stream,
         &inputParameters,
         nullptr,
@@ -107,8 +105,7 @@ bool AudioInput::initStream(int deviceIndex, int numChannels) {
         sampleRate = static_cast<float>(streamInfo->sampleRate);
     }
 
-    PaError startErr = Pa_StartStream(stream);
-    if (startErr != paNoError) {
+    if (const PaError startErr = Pa_StartStream(stream); startErr != paNoError) {
         std::cerr << "Failed to start stream: " << Pa_GetErrorText(startErr) << "\n";
         stopStream();
         return false;
@@ -119,7 +116,7 @@ bool AudioInput::initStream(int deviceIndex, int numChannels) {
 
 
 // Maps the current dominant frequency to a colour
-void AudioInput::getColourForCurrentFrequency(float& r, float& g, float& b, float& freq, float& wavelength) {
+void AudioInput::getColourForCurrentFrequency(float& r, float& g, float& b, float& freq, float& wavelength) const {
     processor.getColourForCurrentFrequency(r, g, b, freq, wavelength);
 }
 
@@ -140,7 +137,7 @@ void AudioInput::stopStream() {
 
 // Processes incoming audio data
 int AudioInput::audioCallback(const void* input, void* output,
-                          unsigned long frameCount,
+                          const unsigned long frameCount,
                           const PaStreamCallbackTimeInfo* timeInfo,
                           PaStreamCallbackFlags statusFlags,
                           void* userData)
@@ -150,18 +147,18 @@ int AudioInput::audioCallback(const void* input, void* output,
     if (!input) {
         return paContinue;
     }
-    
+
     try {
-        const float* inBuffer = static_cast<const float*>(input);
-        static thread_local std::vector<float> processedBuffer;
+        const auto* inBuffer = static_cast<const float*>(input);
+        thread_local std::vector<float> processedBuffer;
         if (processedBuffer.size() < frameCount) {
             processedBuffer.resize(frameCount);
         }
 
         // Get the active channel the user has selected
         int activeChannel = audio->activeChannel;
-        int channelCount = audio->channelCount;
-        
+        const int channelCount = audio->channelCount;
+
         // Ensure active channel is valid
         if (activeChannel >= channelCount) {
             activeChannel = 0;
@@ -171,10 +168,10 @@ int AudioInput::audioCallback(const void* input, void* output,
         // Apply DC removal and noise gate for the active channel
         for (unsigned long i = 0; i < frameCount; ++i) {
             // Get sample from the specific channel
-            float sample = inBuffer[i * channelCount + activeChannel];
+            const float sample = inBuffer[i * channelCount + activeChannel];
 
             // DC Offset Removal for the active channel
-            float filteredSample = sample - audio->previousInputs[activeChannel] + 
+            float filteredSample = sample - audio->previousInputs[activeChannel] +
                               audio->dcRemovalAlpha * audio->previousOutputs[activeChannel];
             audio->previousInputs[activeChannel] = sample;
             audio->previousOutputs[activeChannel] = filteredSample;
@@ -183,14 +180,14 @@ int AudioInput::audioCallback(const void* input, void* output,
             if (std::abs(filteredSample) < audio->noiseGateThreshold) {
                 filteredSample = 0.0f;
             }
-            
+
             processedBuffer[i] = filteredSample;
         }
 
         // Queue the processed data for the worker thread
         audio->processor.queueAudioData(processedBuffer.data(), frameCount, audio->sampleRate);
     }
-    
+
     catch (const std::exception& ex) {
         std::cerr << "Warning in audio callback: " << ex.what() << "\n";
         // Continue processing even when there's an error

@@ -3,8 +3,6 @@
 #include <vector>
 #include <mutex>
 #include <chrono>
-#include <stdexcept>
-#include <atomic>
 #include <span>
 #include "kiss_fftr.h"
 
@@ -29,7 +27,7 @@ public:
     FFTProcessor(FFTProcessor&&) noexcept = delete;
     FFTProcessor& operator=(FFTProcessor&&) noexcept = delete;
 
-    void processBuffer(const std::span<const float> buffer, float sampleRate);
+    void processBuffer(std::span<const float> buffer, float sampleRate);
     std::vector<FrequencyPeak> getDominantFrequencies() const;
     std::vector<float> getMagnitudesBuffer() const;
     std::vector<float> getSpectralEnvelope() const;
@@ -62,16 +60,17 @@ private:
     float currentLoudness;
     static constexpr float LOUDNESS_SMOOTHING = 0.2f;
 
-    void applyWindow(const std::span<const float> buffer);
+    void applyWindow(std::span<const float> buffer);
     void findFrequencyPeaks(float sampleRate);
     float interpolateFrequency(int bin, float sampleRate) const;
-    float calculateNoiseFloor(const std::vector<float>& magnitudes) const;
-    bool isHarmonic(float testFreq, float baseFreq, float threshold = 0.03f) const;
-    float calculateSpectralFlatness(const std::vector<float>& magnitudes) const;
+    static float calculateNoiseFloor(const std::vector<float>& magnitudes) ;
+    static bool isHarmonic(float testFreq, float baseFreq, float threshold = 0.03f) ;
+
+    static float calculateSpectralFlatness(const std::vector<float>& magnitudes);
     
     void calculateMagnitudes(std::vector<float>& rawMagnitudes, float sampleRate, 
-                            float& maxMagnitude, float& totalEnergy);
+                            float& maxMagnitude, float& totalEnergy) const;
     
     void processMagnitudes(std::vector<float>& magnitudes, float sampleRate, float maxMagnitude);
-    void findPeaks(float sampleRate, float noiseFloor, std::vector<FrequencyPeak>& peaks);
+    void findPeaks(float sampleRate, float noiseFloor, std::vector<FrequencyPeak>& peaks) const;
 };
