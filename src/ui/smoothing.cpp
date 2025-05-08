@@ -1,8 +1,8 @@
+#include "colour_mapper.h"
 #include "smoothing.h"
 
 #include <algorithm>
-
-#include "colour_mapper.h"
+#include <cmath>
 
 SpringSmoother::SpringSmoother(const float stiffness, const float damping, const float mass)
 	: m_stiffness(stiffness), m_damping(damping), m_mass(mass), m_rgbCacheDirty(true) {
@@ -14,7 +14,7 @@ SpringSmoother::SpringSmoother(const float stiffness, const float damping, const
 	}
 
 	// Initialise RGB cache
-	m_currentRGB[0] = m_currentRGB[1] = m_currentRGB[2] = 0.5f;	 // Neutral gray
+	m_currentRGB[0] = m_currentRGB[1] = m_currentRGB[2] = 0.5f;
 }
 
 void SpringSmoother::reset(const float r, const float g, const float b) {
@@ -133,25 +133,19 @@ void SpringSmoother::getCurrentColour(float& r, float& g, float& b) const {
 }
 
 void SpringSmoother::setSmoothingAmount(float smoothingAmount) {
-	// Convert from user-friendly 0-1 range to spring parameters
-	// 0 = maximum smoothing, 1 = minimum smoothing
-
 	// Clamp input to valid range
 	smoothingAmount = std::clamp(smoothingAmount, 0.0f, 1.0f);
 
 	// Map 0-1 to appropriate spring stiffness range
-	// Using exponential mapping for better control feel
 	constexpr float MIN_STIFFNESS = 8.0f;
 	constexpr float MAX_STIFFNESS = 120.0f;
 
-	m_stiffness = MIN_STIFFNESS * std::pow(MAX_STIFFNESS / MIN_STIFFNESS, smoothingAmount);
+	m_stiffness = MIN_STIFFNESS * pow(MAX_STIFFNESS / MIN_STIFFNESS, smoothingAmount);
 
 	// Adjust damping to maintain critical damping ratio
-	// Critical damping: damping = 2 * sqrt(stiffness * mass)
-	m_damping = 2.0f * std::sqrt(m_stiffness * m_mass);
+	m_damping = 2.0f * sqrt(m_stiffness * m_mass);
 
-	// Reduced damping factor for more expressive transitions while preserving colour character
-	m_damping *= 0.5f;	// Using original value to maintain colour vibrancy
+	m_damping *= 0.5f;
 }
 
 float SpringSmoother::getSmoothingAmount() const {
@@ -159,9 +153,9 @@ float SpringSmoother::getSmoothingAmount() const {
 	constexpr float MIN_STIFFNESS = 8.0f;
 	constexpr float MAX_STIFFNESS = 120.0f;
 
-	const float logMin = std::log(MIN_STIFFNESS);
-	const float logMax = std::log(MAX_STIFFNESS);
-	const float logCurrent = std::log(m_stiffness);
+	const float logMin = log(MIN_STIFFNESS);
+	const float logMax = log(MAX_STIFFNESS);
+	const float logCurrent = log(m_stiffness);
 
 	return std::clamp((logCurrent - logMin) / (logMax - logMin), 0.0f, 1.0f);
 }
