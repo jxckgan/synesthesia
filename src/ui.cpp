@@ -86,7 +86,7 @@ void updateUI(AudioInput& audioInput, const std::vector<AudioInput::DeviceInfo>&
 	// Colour smoothing
 	float deltaTime = io.DeltaTime;
 	static SpringSmoother colourSmoother(8.0f, 1.0f, 0.3f);
-	static float smoothingAmount = 0.70f;
+	static float smoothingAmount = 0.60f;
 	colourSmoother.setSmoothingAmount(smoothingAmount);
 
 	// Define UI layout measurements
@@ -316,7 +316,7 @@ void updateUI(AudioInput& audioInput, const std::vector<AudioInput::DeviceInfo>&
 
 				ImGui::SetCursorPosX(SIDEBAR_PADDING);
 				if (ImGui::Button("Reset Smoothing", ImVec2(130, BUTTON_HEIGHT))) {
-					smoothingAmount = 0.7f;
+					smoothingAmount = 0.6f;
 					colourSmoother.setSmoothingAmount(smoothingAmount);
 				}
 

@@ -34,7 +34,7 @@ public:
 	static ColourResult frequenciesToColour(const std::vector<float>& frequencies,
 											const std::vector<float>& magnitudes,
 											const std::vector<float>& spectralEnvelope = {},
-											float sampleRate = 44100.0f, float gamma = 0.8f);
+											float sampleRate = 44100.0f, float gamma = 1.0f);
 
 	static float logFrequencyToWavelength(float freq);
 	static void RGBtoLab(float r, float g, float b, float& L, float& a, float& b_comp);
