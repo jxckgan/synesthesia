@@ -13,6 +13,7 @@
 #include "smoothing.h"
 #include "styling.h"
 #include "spectrum_analyser.h"
+#include "device_manager.h"
 
 void initialiseApp(UIState& state) {
     if (!state.updateState.hasCheckedThisSession) {
@@ -26,7 +27,7 @@ void updateUI(AudioInput& audioInput, const std::vector<AudioInput::DeviceInfo>&
 	initialiseApp(state);
 	state.updateChecker.update(state.updateState);
 
-	if (state.selectedDeviceIndex >= 0) {
+	if (state.deviceState.selectedDeviceIndex >= 0) {
         state.updateState.updatePromptVisible = false;
         state.updateState.shouldShowBanner = false;
     }
@@ -37,13 +38,7 @@ void updateUI(AudioInput& audioInput, const std::vector<AudioInput::DeviceInfo>&
 	}
 
 	// Populate device names list
-	if (!state.deviceNamesPopulated && !devices.empty()) {
-		state.deviceNames.reserve(devices.size());
-		for (const auto& dev : devices) {
-			state.deviceNames.push_back(dev.name.c_str());
-		}
-		state.deviceNamesPopulated = true;
-	}
+	DeviceManager::populateDeviceNames(state.deviceState, devices);
 
 	// Colour smoothing
 	float deltaTime = io.DeltaTime;
@@ -61,7 +56,7 @@ void updateUI(AudioInput& audioInput, const std::vector<AudioInput::DeviceInfo>&
     }
     
 	// Process audio data and updates visuals when a device is selected
-	if (state.selectedDeviceIndex >= 0) {
+	if (state.deviceState.selectedDeviceIndex >= 0) {
 		float whiteMix = 0.0f;
 		float gamma = 0.8f;
 		auto peaks = audioInput.getFrequencyPeaks();
@@ -111,7 +106,7 @@ void updateUI(AudioInput& audioInput, const std::vector<AudioInput::DeviceInfo>&
 			// Ensure vector has the correct size
 			state.smoothedMagnitudes.assign(magnitudes.size(), 0.0f);
 		}
-		const size_t count = magnitudes.size();	 // Use size_t for consistency
+		const size_t count = magnitudes.size();
 
 		// Apply smoothing using EMA
 		for (size_t i = 0; i < count; ++i) {
@@ -151,89 +146,16 @@ void updateUI(AudioInput& audioInput, const std::vector<AudioInput::DeviceInfo>&
 		ImGui::Separator();
 		ImGui::Spacing();
 
-		// Input Selection
-		ImGui::Text("INPUT DEVICE");
-		ImGui::SetNextItemWidth(-FLT_MIN);
-		if (!state.deviceNames.empty()) {
-			if (ImGui::Combo("##device", &state.selectedDeviceIndex, state.deviceNames.data(),
-							 static_cast<int>(state.deviceNames.size()))) {
-				if (state.selectedDeviceIndex >= 0 &&
-					static_cast<size_t>(state.selectedDeviceIndex) < devices.size()) {
-					// Clear previous channel names
-					state.channelNames.clear();
-
-					// Get max channels for this device
-					int maxChannels = devices[state.selectedDeviceIndex].maxChannels;
-
-					// Reset selected channel
-					state.selectedChannelIndex = 0;
-
-					// Initialise with all available channels
-					int channelsToUse = std::min(maxChannels, 16);
-
-					// Start the stream with all available channels
-					if (bool success = audioInput.initStream(
-							devices[state.selectedDeviceIndex].paIndex, channelsToUse);
-						!success) {
-						state.streamError = true;
-						state.streamErrorMessage = "Error opening device!";
-					} else {
-						state.streamError = false;
-						state.streamErrorMessage.clear();
-						state.smoothedMagnitudes.assign(state.smoothedMagnitudes.size(), 0.0f);
-						state.previousLoudness = 0.0f;
-						state.transientIntensity = 0.0f;
-						state.smoothedLoudness = 0.0f;
-
-						// Create channel name list
-						static std::vector<std::string> channelNameStrings;
-						channelNameStrings.clear();
-						channelNameStrings.reserve(channelsToUse);
-
-						for (int i = 0; i < channelsToUse; i++) {
-							channelNameStrings.push_back("Channel " + std::to_string(i + 1));
-						}
-
-						// Update channel name pointers
-						state.channelNames.reserve(channelsToUse);
-						for (const auto& name : channelNameStrings) {
-							state.channelNames.push_back(name.c_str());
-						}
-					}
-				} else {
-					state.streamError = true;
-					state.streamErrorMessage = "Invalid device selection index.";
-					state.selectedDeviceIndex = -1;
-				}
-			}
-			if (state.streamError) {
-				ImGui::TextColored(ImVec4(1.0f, 0.3f, 0.3f, 1.0f), "%s",
-								   state.streamErrorMessage.c_str());
-			} else if (state.selectedDeviceIndex < 0) {
-				ImGui::TextDisabled("Select an audio device");
-			}
-		} else {
-			ImGui::TextDisabled("No audio input devices found.");
-		}
-		ImGui::Spacing();
+		DeviceManager::renderDeviceSelection(state.deviceState, audioInput, devices);
 
 		// Only shows controls if a device is successfully selected
-		if (state.selectedDeviceIndex >= 0 && !state.streamError) {
+		if (state.deviceState.selectedDeviceIndex >= 0 && !state.deviceState.streamError) {
 			constexpr float BUTTON_HEIGHT = 25.0f;
 			constexpr float CONTROL_WIDTH = 150.0f;
 			constexpr float LABEL_WIDTH = 90.0f;
-			if (state.selectedDeviceIndex >= 0 && !state.streamError &&
-				!state.channelNames.empty() && devices[state.selectedDeviceIndex].maxChannels > 2) {
-				ImGui::Text("CHANNEL");
-				ImGui::SetNextItemWidth(-FLT_MIN);
-				if (ImGui::Combo("##channel", &state.selectedChannelIndex,
-								 state.channelNames.data(),
-								 static_cast<int>(state.channelNames.size()))) {
-					// Update the active channel in the audio input
-					audioInput.setActiveChannel(state.selectedChannelIndex);
-				}
-				ImGui::Spacing();
-			}
+			
+			// Channel Selection (now handled by DeviceManager)
+			DeviceManager::renderChannelSelection(state.deviceState, audioInput, devices);
 
 			if (ImGui::CollapsingHeader("FREQUENCY INFO", ImGuiTreeNodeFlags_DefaultOpen)) {
 				ImGui::Indent(10);
@@ -348,12 +270,11 @@ void updateUI(AudioInput& audioInput, const std::vector<AudioInput::DeviceInfo>&
 
 		ImGui::End();
 
-		// Spectrum Analyser window
-		if (state.selectedDeviceIndex >= 0 && !state.streamError && state.showSpectrumAnalyser) {
+		if (state.deviceState.selectedDeviceIndex >= 0 && !state.deviceState.streamError && state.showSpectrumAnalyser) {
 			SpectrumAnalyser::drawSpectrumWindow(
 				state.smoothedMagnitudes,
 				devices,
-				state.selectedDeviceIndex,
+				state.deviceState.selectedDeviceIndex,
 				displaySize,
 				SIDEBAR_WIDTH
 			);
