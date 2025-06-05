@@ -208,24 +208,29 @@ set_target_properties(${EXECUTABLE_NAME} PROPERTIES
 
 # macOS Bundle Configuration
 if(APPLE AND BUILD_MACOS_BUNDLE)
-    configure_file(${CMAKE_CURRENT_SOURCE_DIR}/meta/Info.plist.in ${CMAKE_BINARY_DIR}/Info.plist)
-    configure_file(${CMAKE_CURRENT_SOURCE_DIR}/meta/entitlements.plist ${CMAKE_BINARY_DIR}/entitlements.plist COPYONLY)
-    
-    set(ICON_SRC "${CMAKE_CURRENT_SOURCE_DIR}/meta/icon/app.icns")
-    set(ICON_DEST "${CMAKE_BINARY_DIR}/${EXECUTABLE_NAME}.app/Contents/Resources/app.icns")
-    add_custom_command(TARGET ${EXECUTABLE_NAME} POST_BUILD
-        COMMAND ${CMAKE_COMMAND} -E make_directory "${CMAKE_BINARY_DIR}/${EXECUTABLE_NAME}.app/Contents/Resources"
-        COMMAND ${CMAKE_COMMAND} -E copy "${ICON_SRC}" "${ICON_DEST}"
-        COMMENT "Copying app icon to bundle resources"
-    )
     set_target_properties(${EXECUTABLE_NAME} PROPERTIES
         MACOSX_BUNDLE_INFO_PLIST "${CMAKE_BINARY_DIR}/Info.plist"
         MACOSX_BUNDLE_ICON_FILE "app.icns"
         MACOSX_BUNDLE_BUNDLE_NAME "Synesthesia"
         MACOSX_BUNDLE_BUNDLE_VERSION "${SYNESTHESIA_VERSION}"
-        MACOSX_BUNDLE_COPYRIGHT "Copyright (C) 2025 Jack Gannon | MIT License"
+        MACOSX_BUNDLE_SHORT_VERSION_STRING "${SYNESTHESIA_VERSION}"
+        MACOSX_BUNDLE_LONG_VERSION_STRING "Synesthesia ${SYNESTHESIA_VERSION}"
+        MACOSX_BUNDLE_COPYRIGHT "Copyright © 2025 Jack Gannon. All rights reserved."
         MACOSX_BUNDLE_GUI_IDENTIFIER "com.jackgannon.Synesthesia"
+        MACOSX_BUNDLE_EXECUTABLE_NAME "${EXECUTABLE_NAME}"
         RESOURCE "${ICON_SRC}"
+    )
+    
+    configure_file(${CMAKE_CURRENT_SOURCE_DIR}/meta/Info.plist.in ${CMAKE_BINARY_DIR}/Info.plist)
+    configure_file(${CMAKE_CURRENT_SOURCE_DIR}/meta/entitlements.plist ${CMAKE_BINARY_DIR}/entitlements.plist COPYONLY)
+    
+    set(ICON_SRC "${CMAKE_CURRENT_SOURCE_DIR}/meta/icon/app.icns")
+    set(ICON_DEST "${CMAKE_BINARY_DIR}/${EXECUTABLE_NAME}.app/Contents/Resources/app.icns")
+
+    add_custom_command(TARGET ${EXECUTABLE_NAME} POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E make_directory "${CMAKE_BINARY_DIR}/${EXECUTABLE_NAME}.app/Contents/Resources"
+        COMMAND ${CMAKE_COMMAND} -E copy "${ICON_SRC}" "${ICON_DEST}"
+        COMMENT "Copying app icon to bundle resources"
     )
 endif()
 
