@@ -75,6 +75,7 @@ set(SOURCES
     ${SRC_DIR}/audio/audio_processor.cpp
     ${SRC_DIR}/colour/colour_mapper.cpp
     ${SRC_DIR}/fft/fft_processor.cpp
+    ${SRC_DIR}/ui/controls/controls.cpp
     ${SRC_DIR}/ui/device_manager/device_manager.cpp
     ${SRC_DIR}/ui/updating/update.cpp
     ${SRC_DIR}/ui/smoothing/smoothing.cpp
@@ -132,6 +133,7 @@ target_include_directories(${EXECUTABLE_NAME} PRIVATE
     ${SRC_DIR}/audio
     ${SRC_DIR}/colour
     ${SRC_DIR}/fft
+    ${SRC_DIR}/ui/controls
     ${SRC_DIR}/ui/device_manager
     ${SRC_DIR}/ui/updating
     ${SRC_DIR}/ui/smoothing

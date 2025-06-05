@@ -8,6 +8,7 @@
 #include <vector>
 
 #include "audio_input.h"
+#include "controls.h"
 #include "colour_mapper.h"
 #include "fft_processor.h"
 #include "smoothing.h"
@@ -154,104 +155,32 @@ void updateUI(AudioInput& audioInput, const std::vector<AudioInput::DeviceInfo>&
 			constexpr float CONTROL_WIDTH = 150.0f;
 			constexpr float LABEL_WIDTH = 90.0f;
 			
-			// Channel Selection (now handled by DeviceManager)
 			DeviceManager::renderChannelSelection(state.deviceState, audioInput, devices);
 
-			if (ImGui::CollapsingHeader("FREQUENCY INFO", ImGuiTreeNodeFlags_DefaultOpen)) {
-				ImGui::Indent(10);
-				auto peaks = audioInput.getFrequencyPeaks();
-				auto currentColourResult = ColourMapper::frequenciesToColour(
-					[&peaks] {
-						std::vector<float> f;
-						f.reserve(peaks.size());
-						for (const auto& p : peaks)
-							f.push_back(p.frequency);
-						return f;
-					}(),
-					[&peaks] {
-						std::vector<float> m;
-						m.reserve(peaks.size());
-						for (const auto& p : peaks)
-							m.push_back(p.magnitude);
-						return m;
-					}(),
-					{}, 44100.0f, 0.8f);
-
-				if (!peaks.empty()) {
-					ImGui::Text("Dominant: %.1f Hz", peaks[0].frequency);
-					ImGui::Text("Wavelength: %.1f nm", currentColourResult.dominantWavelength);
-					ImGui::Text("Number of peaks detected: %d", static_cast<int>(peaks.size()));
-				} else {
-					ImGui::TextDisabled("No significant frequencies");
-				}
-				ImGui::Text("RGB: (%.2f, %.2f, %.2f)", clear_color[0], clear_color[1],
-							clear_color[2]);
-				ImGui::Unindent(10);
-				ImGui::Spacing();
-			}
-
-			if (ImGui::CollapsingHeader("VISUALISER SETTINGS", ImGuiTreeNodeFlags_DefaultOpen)) {
-				ImGui::Indent(10);
-
-				ImGui::AlignTextToFramePadding();
-				ImGui::Text("Smoothing");
-				ImGui::SameLine(SIDEBAR_PADDING + LABEL_WIDTH);
-				ImGui::SetCursorPosX(SIDEBAR_WIDTH - SIDEBAR_PADDING - CONTROL_WIDTH);
-				ImGui::SetNextItemWidth(CONTROL_WIDTH);
-				if (ImGui::SliderFloat("##Smoothing", &smoothingAmount, 0.0f, 1.0f, "%.2f")) {
-					colourSmoother.setSmoothingAmount(smoothingAmount);
-				}
-
-				ImGui::SetCursorPosX(SIDEBAR_PADDING);
-				if (ImGui::Button("Reset Smoothing", ImVec2(130, BUTTON_HEIGHT))) {
-					smoothingAmount = 0.6f;
-					colourSmoother.setSmoothingAmount(smoothingAmount);
-				}
-
-				ImGui::Unindent(10);
-				ImGui::Spacing();
-			}
-
-			if (ImGui::CollapsingHeader("EQ CONTROLS", ImGuiTreeNodeFlags_DefaultOpen)) {
-				ImGui::Indent(10);
-
-				ImGui::AlignTextToFramePadding();
-				ImGui::Text("Lows");
-				ImGui::SameLine(SIDEBAR_PADDING + LABEL_WIDTH);
-				ImGui::SetCursorPosX(SIDEBAR_WIDTH - SIDEBAR_PADDING - CONTROL_WIDTH);
-				ImGui::SetNextItemWidth(CONTROL_WIDTH);
-				ImGui::SliderFloat("##LowGain", &state.lowGain, 0.0f, 2.0f);
-
-				ImGui::AlignTextToFramePadding();
-				ImGui::Text("Mids");
-				ImGui::SameLine(SIDEBAR_PADDING + LABEL_WIDTH);
-				ImGui::SetCursorPosX(SIDEBAR_WIDTH - SIDEBAR_PADDING - CONTROL_WIDTH);
-				ImGui::SetNextItemWidth(CONTROL_WIDTH);
-				ImGui::SliderFloat("##MidGain", &state.midGain, 0.0f, 2.0f);
-
-				ImGui::AlignTextToFramePadding();
-				ImGui::Text("Highs");
-				ImGui::SameLine(SIDEBAR_PADDING + LABEL_WIDTH);
-				ImGui::SetCursorPosX(SIDEBAR_WIDTH - SIDEBAR_PADDING - CONTROL_WIDTH);
-				ImGui::SetNextItemWidth(CONTROL_WIDTH);
-				ImGui::SliderFloat("##HighGain", &state.highGain, 0.0f, 2.0f);
-
-				float buttonWidth = (contentWidth - ImGui::GetStyle().ItemSpacing.x) / 2;
-				ImGui::SetCursorPosX(SIDEBAR_PADDING);
-				if (ImGui::Button("Reset EQ", ImVec2(buttonWidth, BUTTON_HEIGHT))) {
-					state.lowGain = state.midGain = state.highGain = 1.0f;
-				}
-				ImGui::SameLine();
-				ImGui::SetCursorPosX(SIDEBAR_PADDING + buttonWidth +
-									 ImGui::GetStyle().ItemSpacing.x);
-				if (ImGui::Button(state.showSpectrumAnalyser ? "Hide Spectrum" : "Show Spectrum",
-								  ImVec2(buttonWidth, BUTTON_HEIGHT))) {
-					state.showSpectrumAnalyser = !state.showSpectrumAnalyser;
-				}
-
-				ImGui::Unindent(10);
-				ImGui::Spacing();
-			}
+			Controls::renderFrequencyInfoPanel(audioInput, clear_color);
+			
+			Controls::renderVisualiserSettingsPanel(
+				colourSmoother, 
+				smoothingAmount,
+				SIDEBAR_WIDTH,
+				SIDEBAR_PADDING,
+				LABEL_WIDTH,
+				CONTROL_WIDTH,
+				BUTTON_HEIGHT
+			);
+			
+			Controls::renderEQControlsPanel(
+				state.lowGain,
+				state.midGain,
+				state.highGain,
+				state.showSpectrumAnalyser,
+				SIDEBAR_WIDTH,
+				SIDEBAR_PADDING,
+				LABEL_WIDTH,
+				CONTROL_WIDTH,
+				BUTTON_HEIGHT,
+				contentWidth
+			);
 		}
 
 		float bottomTextHeight = ImGui::GetTextLineHeightWithSpacing() + 12;
