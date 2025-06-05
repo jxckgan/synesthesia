@@ -77,6 +77,7 @@ set(SOURCES
     ${SRC_DIR}/fft/fft_processor.cpp
     ${SRC_DIR}/ui/updating/update.cpp
     ${SRC_DIR}/ui/smoothing/smoothing.cpp
+    ${SRC_DIR}/ui/styling/styling.cpp
     ${SRC_DIR}/ui/spectrum_analyser/spectrum_analyser.cpp
     ${SRC_DIR}/ui.cpp
     ${IMGUI_DIR}/imgui.cpp
@@ -132,6 +133,7 @@ target_include_directories(${EXECUTABLE_NAME} PRIVATE
     ${SRC_DIR}/fft
     ${SRC_DIR}/ui/updating
     ${SRC_DIR}/ui/smoothing
+    ${SRC_DIR}/ui/styling
     ${SRC_DIR}/ui/spectrum_analyser
     ${SRC_DIR}/zero_crossing
     ${CMAKE_BINARY_DIR}

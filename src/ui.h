@@ -3,6 +3,7 @@
 
 #include "audio_input.h"
 #include "update.h"
+#include "styling.h"
 #include "imgui.h"
 #include <vector>
 
@@ -27,8 +28,7 @@ struct UIState {
     std::vector<float> smoothedMagnitudes;
     float spectrumSmoothingFactor = 0.2f;
 
-    ImGuiStyle originalStyle;
-    bool styleApplied = false;
+    StyleState styleState;
 
     std::vector<const char*> deviceNames;
     std::vector<const char*> channelNames;
