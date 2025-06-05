@@ -55,7 +55,7 @@ set(SOURCES
     ${SRC_DIR}/audio/audio_processor.cpp
     ${SRC_DIR}/colour/colour_mapper.cpp
     ${SRC_DIR}/fft/fft_processor.cpp
-    ${SRC_DIR}/ui/smoothing.cpp
+    ${SRC_DIR}/ui/smoothing/smoothing.cpp
     ${SRC_DIR}/ui.cpp
     ${IMGUI_DIR}/imgui.cpp
     ${IMGUI_DIR}/imgui_demo.cpp
@@ -108,7 +108,7 @@ target_include_directories(synesthesia PRIVATE
     ${SRC_DIR}/audio
     ${SRC_DIR}/colour
     ${SRC_DIR}/fft
-    ${SRC_DIR}/ui
+    ${SRC_DIR}/ui/smoothing
     ${SRC_DIR}/zero_crossing
     ${CMAKE_BINARY_DIR}
     /usr/local/include
