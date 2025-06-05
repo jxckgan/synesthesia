@@ -53,7 +53,16 @@ jobs:
       - name: Package for macOS (Apple Silicon)
         run: |
           cd build
-          hdiutil create -volname "Synesthesia" -srcfolder synesthesia.app -ov -format UDZO synesthesia-mac-arm.dmg
+          # Create a temporary directory for DMG contents
+          mkdir -p dmg_contents
+          cp -R synesthesia.app dmg_contents/
+          ln -s /Applications dmg_contents/Applications
+          
+          # Create the DMG with the contents directory
+          hdiutil create -volname "Synesthesia" -srcfolder dmg_contents -ov -format UDZO synesthesia-mac-arm.dmg
+          
+          # Clean up temporary directory
+          rm -rf dmg_contents
 
       - name: Upload macOS artifact
         uses: actions/upload-artifact@v4
