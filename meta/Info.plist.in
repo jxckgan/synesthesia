@@ -21,12 +21,14 @@
     <key>CFBundleVersion</key>
     <string>${SYNESTHESIA_VERSION}</string>
     <key>NSHumanReadableCopyright</key>
-    <string>Copyright © 2025 Jack Gannon. All rights reserved.</string>
+    <string>Copyright © 2025 Jack Gannon | MIT License</string>
     <key>LSMinimumSystemVersion</key>
     <string>10.15</string>
     <key>NSHighResolutionCapable</key>
     <true/>
     <key>NSSupportsAutomaticGraphicsSwitching</key>
     <true/>
+    <key>NSMicrophoneUsageDescription</key>
+    <string>Synesthesia needs microphone access to analyze audio and create visual effects based on sound input.</string>
 </dict>
 </plist>

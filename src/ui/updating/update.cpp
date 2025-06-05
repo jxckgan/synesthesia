@@ -8,6 +8,8 @@
 #include <cstdlib>
 #include <memory>
 #include <array>
+#include <algorithm> 
+#include <vector>
 
 #ifdef _WIN32
     #include <windows.h>
@@ -92,7 +94,8 @@ bool UpdateChecker::isNewerVersion(const std::string& current, const std::string
     auto currentParts = parseVersion(current);
     auto latestParts = parseVersion(latest);
     
-    for (size_t i = 0; i < std::min(currentParts.size(), latestParts.size()); ++i) {
+    size_t minSize = (currentParts.size() < latestParts.size()) ? currentParts.size() : latestParts.size();
+    for (size_t i = 0; i < minSize; ++i) {
         if (latestParts[i] > currentParts[i]) {
             return true;
         } else if (latestParts[i] < currentParts[i]) {
