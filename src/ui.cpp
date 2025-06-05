@@ -67,8 +67,23 @@ void restoreOriginalStyle(ImGuiStyle& style, UIState& state) {
 	}
 }
 
+void initialiseApp(UIState& state) {
+    if (!state.updateState.hasCheckedThisSession) {
+        state.updateChecker.checkForUpdates("jxckgan", "synesthesia");
+        state.updateState.hasCheckedThisSession = true;
+    }
+}
+
 void updateUI(AudioInput& audioInput, const std::vector<AudioInput::DeviceInfo>& devices,
 			  float* clear_color, ImGuiIO& io, UIState& state) {
+	initialiseApp(state);
+	state.updateChecker.update(state.updateState);
+
+	if (state.selectedDeviceIndex >= 0) {
+        state.updateState.updatePromptVisible = false;
+        state.updateState.shouldShowBanner = false;
+    }
+
 	// Toggle UI On/Off with 'H' key
 	if (ImGui::IsKeyPressed(ImGuiKey_H)) {
 		state.showUI = !state.showUI;
@@ -94,6 +109,10 @@ void updateUI(AudioInput& audioInput, const std::vector<AudioInput::DeviceInfo>&
 	constexpr float SIDEBAR_PADDING = 16.0f;
 	constexpr float contentWidth = SIDEBAR_WIDTH - SIDEBAR_PADDING * 2;
 
+	if (state.showUI && state.updateChecker.shouldShowUpdateBanner(state.updateState)) {
+        state.updateChecker.drawUpdateBanner(state.updateState, io.DisplaySize.x, SIDEBAR_WIDTH);
+    }
+    
 	// Process audio data and updates visuals when a device is selected
 	if (state.selectedDeviceIndex >= 0) {
 		float whiteMix = 0.0f;

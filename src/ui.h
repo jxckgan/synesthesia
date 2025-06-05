@@ -2,6 +2,7 @@
 #define UI_H
 
 #include "audio_input.h"
+#include "update.h"
 #include "imgui.h"
 #include <vector>
 
@@ -32,6 +33,9 @@ struct UIState {
     std::vector<const char*> deviceNames;
     std::vector<const char*> channelNames;
     bool deviceNamesPopulated = false;
+
+    UpdateState updateState;
+    UpdateChecker updateChecker;
 };
 
 void updateUI(AudioInput &audioInput,

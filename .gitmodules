@@ -7,3 +7,6 @@
 [submodule "vendor/portaudio"]
 	path = vendor/portaudio
 	url = https://github.com/PortAudio/portaudio.git
+[submodule "vendor/json"]
+	path = vendor/json
+	url = https://github.com/nlohmann/json

@@ -1,15 +1,30 @@
 cmake_minimum_required(VERSION 3.13)
-project(Synesthesia)
 
+set(SYNESTHESIA_VERSION_MAJOR 2025)
+set(SYNESTHESIA_VERSION_MINOR 06)
+set(SYNESTHESIA_VERSION_PATCH 03)
+set(SYNESTHESIA_VERSION "${SYNESTHESIA_VERSION_MAJOR}.${SYNESTHESIA_VERSION_MINOR}.${SYNESTHESIA_VERSION_PATCH}")
+
+project(Synesthesia VERSION ${SYNESTHESIA_VERSION})
+
+set(EXECUTABLE_NAME "Synesthesia")
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(IMGUI_DIR "${CMAKE_CURRENT_SOURCE_DIR}/vendor/imgui")
 set(KISSFFT_DIR "${CMAKE_CURRENT_SOURCE_DIR}/vendor/kissfft")
+set(JSON_DIR "${CMAKE_CURRENT_SOURCE_DIR}/vendor/json")
 set(SRC_DIR "${CMAKE_CURRENT_SOURCE_DIR}/src")
 set(GLFW_DIR "${CMAKE_CURRENT_SOURCE_DIR}/vendor/glfw")
 set(PORTAUDIO_DIR "${CMAKE_CURRENT_SOURCE_DIR}/vendor/portaudio")
 
 option(BUILD_MACOS_BUNDLE "Build as macOS .app bundle" OFF)
+
+# Configure version header
+configure_file(
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/version.h.in"
+    "${CMAKE_BINARY_DIR}/version.h"
+    @ONLY
+)
 
 # Windows-specific configurations
 if(WIN32)
@@ -24,6 +39,11 @@ if(EXISTS "${GLFW_DIR}/CMakeLists.txt")
     message(STATUS "Using vendor GLFW from ${GLFW_DIR}")
     add_subdirectory(${GLFW_DIR})
     set(GLFW_TARGET glfw)
+endif()
+
+if(EXISTS "${JSON_DIR}/CMakeLists.txt")
+    message(STATUS "Using vendor nlohmann/json from ${JSON_DIR}")
+    add_subdirectory(${JSON_DIR})
 endif()
 
 if(CMAKE_VERSION VERSION_GREATER_EQUAL 3.12)
@@ -55,6 +75,7 @@ set(SOURCES
     ${SRC_DIR}/audio/audio_processor.cpp
     ${SRC_DIR}/colour/colour_mapper.cpp
     ${SRC_DIR}/fft/fft_processor.cpp
+    ${SRC_DIR}/ui/updating/update.cpp
     ${SRC_DIR}/ui/smoothing/smoothing.cpp
     ${SRC_DIR}/ui.cpp
     ${IMGUI_DIR}/imgui.cpp
@@ -88,19 +109,19 @@ endif()
 
 # Create the executable
 if(WIN32)
-    add_executable(synesthesia WIN32 ${SOURCES})
+    add_executable(${EXECUTABLE_NAME} WIN32 ${SOURCES})
 elseif(APPLE)
     if(BUILD_MACOS_BUNDLE)
-        add_executable(synesthesia MACOSX_BUNDLE ${SOURCES})
+        add_executable(${EXECUTABLE_NAME} MACOSX_BUNDLE ${SOURCES})
     else()
-        add_executable(synesthesia ${SOURCES})
+        add_executable(${EXECUTABLE_NAME} ${SOURCES})
     endif()
 else()
-    add_executable(synesthesia ${SOURCES})
+    add_executable(${EXECUTABLE_NAME} ${SOURCES})
 endif()
 
 # Include directories
-target_include_directories(synesthesia PRIVATE
+target_include_directories(${EXECUTABLE_NAME} PRIVATE
     ${IMGUI_DIR}
     ${IMGUI_DIR}/backends
     ${KISSFFT_DIR}
@@ -108,6 +129,7 @@ target_include_directories(synesthesia PRIVATE
     ${SRC_DIR}/audio
     ${SRC_DIR}/colour
     ${SRC_DIR}/fft
+    ${SRC_DIR}/ui/updating
     ${SRC_DIR}/ui/smoothing
     ${SRC_DIR}/zero_crossing
     ${CMAKE_BINARY_DIR}
@@ -116,19 +138,27 @@ target_include_directories(synesthesia PRIVATE
     /opt/local/include
 )
 
+# Define version macros for the target
+target_compile_definitions(${EXECUTABLE_NAME} PRIVATE
+    SYNESTHESIA_VERSION_MAJOR=${SYNESTHESIA_VERSION_MAJOR}
+    SYNESTHESIA_VERSION_MINOR=${SYNESTHESIA_VERSION_MINOR}
+    SYNESTHESIA_VERSION_PATCH=${SYNESTHESIA_VERSION_PATCH}
+    SYNESTHESIA_VERSION_STRING="${SYNESTHESIA_VERSION}"
+)
+
 # Platform-specific compile options
 if(WIN32)
-    target_compile_options(synesthesia PRIVATE 
+    target_compile_options(${EXECUTABLE_NAME} PRIVATE 
         $<$<CONFIG:Release>:/O2>
         $<$<CONFIG:Release>:/GL>
     )
-    target_link_options(synesthesia PRIVATE 
+    target_link_options(${EXECUTABLE_NAME} PRIVATE 
         $<$<CONFIG:Release>:/LTCG>
         $<$<CONFIG:Release>:/SUBSYSTEM:WINDOWS>
         $<$<CONFIG:Release>:/ENTRY:mainCRTStartup>
     )
 elseif(APPLE)
-    target_compile_options(synesthesia PRIVATE
+    target_compile_options(${EXECUTABLE_NAME} PRIVATE
         "-Wall" "-Wformat" "-O3" "-ffast-math" "-march=native"
     )
     set_source_files_properties(${SRC_DIR}/renderers/metal/main.mm PROPERTIES COMPILE_FLAGS "${OBJC_FLAGS}")
@@ -144,7 +174,7 @@ if(APPLE)
     find_library(COREVIDEO_FRAMEWORK CoreVideo REQUIRED)
     find_library(QUARTZCORE_FRAMEWORK QuartzCore REQUIRED)
 
-    target_link_libraries(synesthesia PRIVATE
+    target_link_libraries(${EXECUTABLE_NAME} PRIVATE
         ${METAL_FRAMEWORK}
         ${METALKIT_FRAMEWORK}
         ${COCOA_FRAMEWORK}
@@ -153,23 +183,26 @@ if(APPLE)
         ${QUARTZCORE_FRAMEWORK}
         ${GLFW_TARGET}
         ${PORTAUDIO_TARGET}
+        nlohmann_json::nlohmann_json
         m
     )
 elseif(WIN32)
-    target_link_libraries(synesthesia PRIVATE
+    target_link_libraries(${EXECUTABLE_NAME} PRIVATE
         ${GLFW_TARGET}
         ${PORTAUDIO_TARGET}
         ${DX12_LIBS}
+        nlohmann_json::nlohmann_json
     )
 else()
-    target_link_libraries(synesthesia PRIVATE
+    target_link_libraries(${EXECUTABLE_NAME} PRIVATE
         ${GLFW_TARGET}
         ${PORTAUDIO_TARGET}
         GL
+        nlohmann_json::nlohmann_json
     )
 endif()
 
-set_target_properties(synesthesia PROPERTIES
+set_target_properties(${EXECUTABLE_NAME} PROPERTIES
     RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}
 )
 
@@ -179,17 +212,17 @@ if(APPLE AND BUILD_MACOS_BUNDLE)
     configure_file(${CMAKE_CURRENT_SOURCE_DIR}/meta/entitlements.plist ${CMAKE_BINARY_DIR}/entitlements.plist COPYONLY)
     
     set(ICON_SRC "${CMAKE_CURRENT_SOURCE_DIR}/meta/icon/app.icns")
-    set(ICON_DEST "${CMAKE_BINARY_DIR}/synesthesia.app/Contents/Resources/app.icns")
-    add_custom_command(TARGET synesthesia POST_BUILD
-        COMMAND ${CMAKE_COMMAND} -E make_directory "${CMAKE_BINARY_DIR}/synesthesia.app/Contents/Resources"
+    set(ICON_DEST "${CMAKE_BINARY_DIR}/${EXECUTABLE_NAME}.app/Contents/Resources/app.icns")
+    add_custom_command(TARGET ${EXECUTABLE_NAME} POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E make_directory "${CMAKE_BINARY_DIR}/${EXECUTABLE_NAME}.app/Contents/Resources"
         COMMAND ${CMAKE_COMMAND} -E copy "${ICON_SRC}" "${ICON_DEST}"
         COMMENT "Copying app icon to bundle resources"
     )
-    set_target_properties(synesthesia PROPERTIES
+    set_target_properties(${EXECUTABLE_NAME} PROPERTIES
         MACOSX_BUNDLE_INFO_PLIST "${CMAKE_BINARY_DIR}/Info.plist"
         MACOSX_BUNDLE_ICON_FILE "app.icns"
         MACOSX_BUNDLE_BUNDLE_NAME "Synesthesia"
-        MACOSX_BUNDLE_BUNDLE_VERSION "1.0"
+        MACOSX_BUNDLE_BUNDLE_VERSION "${SYNESTHESIA_VERSION}"
         MACOSX_BUNDLE_COPYRIGHT "Copyright (C) 2025 Jack Gannon | MIT License"
         MACOSX_BUNDLE_GUI_IDENTIFIER "com.jackgannon.Synesthesia"
         RESOURCE "${ICON_SRC}"
@@ -198,17 +231,17 @@ endif()
 
 # Installation Rules
 if(WIN32 AND CMAKE_BUILD_TYPE STREQUAL "Release")
-    install(TARGETS synesthesia
+    install(TARGETS ${EXECUTABLE_NAME}
         RUNTIME DESTINATION bin
     )
     install(FILES 
-        $<TARGET_RUNTIME_DLLS:synesthesia>
+        $<TARGET_RUNTIME_DLLS:${EXECUTABLE_NAME}>
         DESTINATION bin
     )
 elseif(APPLE)
-    install(TARGETS synesthesia BUNDLE DESTINATION ".")
+    install(TARGETS ${EXECUTABLE_NAME} BUNDLE DESTINATION ".")
 else()
-    install(TARGETS synesthesia
+    install(TARGETS ${EXECUTABLE_NAME}
         RUNTIME DESTINATION bin
     )
 endif()
