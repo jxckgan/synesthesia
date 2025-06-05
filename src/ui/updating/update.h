@@ -3,6 +3,7 @@
 
 #include <string>
 #include <functional>
+#include <memory>
 #include "version.h"
 
 struct UpdateState {
