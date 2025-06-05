@@ -11,6 +11,7 @@
 #include "colour_mapper.h"
 #include "fft_processor.h"
 #include "smoothing.h"
+#include "spectrum_analyser.h"
 
 void applyCustomUIStyle(ImGuiStyle& style, UIState& state) {
 	if (!state.styleApplied) {
@@ -403,137 +404,13 @@ void updateUI(AudioInput& audioInput, const std::vector<AudioInput::DeviceInfo>&
 
 		// Spectrum Analyser window
 		if (state.selectedDeviceIndex >= 0 && !state.streamError && state.showSpectrumAnalyser) {
-			constexpr float spectrumHeight = 210.0f;
-
-			auto spectrumPos = ImVec2(0.0f, displaySize.y - spectrumHeight);
-			auto spectrumSize = ImVec2(displaySize.x - SIDEBAR_WIDTH, spectrumHeight);
-
-			ImGui::SetNextWindowPos(spectrumPos);
-			ImGui::SetNextWindowSize(spectrumSize);
-			ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0.0f, 0.0f));
-			ImGui::PushStyleColor(ImGuiCol_WindowBg, ImVec4(0.0f, 0.0f, 0.0f, 0.0f));
-
-			ImGui::Begin("##SpectrumAnalyser", nullptr,
-						 ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize |
-							 ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoScrollbar |
-							 ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoBackground);
-
-			// Normalise Y-Axis for spectrum dynamically
-			float maxMagnitude = 0.0f;
-			if (!state.smoothedMagnitudes.empty()) {
-				maxMagnitude = *std::ranges::max_element(state.smoothedMagnitudes);
-			}
-			float yMax = maxMagnitude > 0.0001f ? maxMagnitude * 1.1f : 0.1f;
-
-			ImVec2 canvas_pos = ImGui::GetCursorScreenPos();
-			ImVec2 canvas_size = ImGui::GetContentRegionAvail();
-
-			ImDrawList* drawList = ImGui::GetWindowDrawList();
-
-			// Draw subtle background gradient
-			drawList->AddRectFilledMultiColor(
-				ImVec2(canvas_pos.x, canvas_pos.y),
-				ImVec2(canvas_pos.x + canvas_size.x, canvas_pos.y + canvas_size.y),
-				ImGui::ColorConvertFloat4ToU32(ImVec4(0.0f, 0.0f, 0.0f, 0.0f)),
-				ImGui::ColorConvertFloat4ToU32(ImVec4(0.0f, 0.0f, 0.0f, 0.0f)),
-				ImGui::ColorConvertFloat4ToU32(ImVec4(0.0f, 0.0f, 0.0f, 0.4f)),
-				ImGui::ColorConvertFloat4ToU32(ImVec4(0.0f, 0.0f, 0.0f, 0.4f)));
-
-			constexpr int lineCount = 500;
-			std::vector<ImVec2> points(lineCount);
-
-			float sampleRate = 44100.0f;
-			if (state.selectedDeviceIndex >= 0 &&
-				static_cast<size_t>(state.selectedDeviceIndex) < devices.size()) {
-				if (const PaDeviceInfo* deviceInfo =
-						Pa_GetDeviceInfo(devices[state.selectedDeviceIndex].paIndex)) {
-					sampleRate = static_cast<float>(deviceInfo->defaultSampleRate);
-				}
-			}
-
-			const float binSize = sampleRate / FFTProcessor::FFT_SIZE;
-			constexpr float minFreq = FFTProcessor::MIN_FREQ;
-			constexpr float maxFreq = FFTProcessor::MAX_FREQ;
-			const float logMinFreq = std::log10(minFreq);
-			const float logMaxFreq = std::log10(maxFreq);
-
-			// Fill point array with spectrum data using logarithmic scale
-			if (const float logFreqRange = logMaxFreq - logMinFreq;
-				!state.smoothedMagnitudes.empty() && binSize > 0.0f && logFreqRange > 0.0f) {
-				for (int i = 0; i < lineCount; ++i) {
-					// Calculate frequency for this point using logarithmic interpolation
-					float logPosition = static_cast<float>(i) / (lineCount - 1);  // 0.0 to 1.0
-					float currentLogFreq = logMinFreq + logPosition * logFreqRange;
-					float freq = std::pow(10.0f, currentLogFreq);
-
-					// Calculate corresponding bin index
-					float binIndex = freq / binSize;
-
-					// Ensure bin index is in valid range and interpolate
-					int binIndexFloor = static_cast<int>(binIndex);
-					float t = binIndex - binIndexFloor;	 // Interpolation factor
-
-					// Clamp indices safely
-					int idx0 = std::min(std::max(binIndexFloor, 0),
-										static_cast<int>(state.smoothedMagnitudes.size()) - 1);
-					int idx1 =
-						std::min(idx0 + 1, static_cast<int>(state.smoothedMagnitudes.size()) - 1);
-
-					float magnitude = state.smoothedMagnitudes[idx0] * (1.0f - t) +
-									  state.smoothedMagnitudes[idx1] * t;
-
-					// Calculate x position
-					float xPos =
-						canvas_pos.x + static_cast<float>(i) / (lineCount - 1) * canvas_size.x;
-
-					// Calculate y position
-					float height = magnitude / yMax * canvas_size.y * 0.7f;
-					height = std::min(height, canvas_size.y * 0.75f);
-					float yPos = canvas_pos.y + canvas_size.y - height;
-
-					points[i] = ImVec2(xPos, yPos);
-				}
-
-				// Apply smoothing to the calculated points
-				std::vector<float> smoothedYPositions(lineCount);
-				for (int i = 0; i < lineCount; ++i) {
-					constexpr int smoothingWindow = 7;
-					float sum = 0.0f;
-					int count = 0;
-					int halfWindow = smoothingWindow / 2;
-					for (int j = std::max(0, i - halfWindow);
-						 j <= std::min(lineCount - 1, i + halfWindow); ++j) {
-						sum += points[j].y;
-						count++;
-					}
-					smoothedYPositions[i] =
-						count > 0 ? sum / count : points[i].y;	// Avoid division by zero
-				}
-
-				for (int i = 0; i < lineCount; ++i) {
-					points[i].y = smoothedYPositions[i];
-				}
-
-				// Define colours for drawing
-				ImU32 fillColor = ImGui::ColorConvertFloat4ToU32(ImVec4(1.0f, 1.0f, 1.0f, 0.1f));
-				ImU32 lineColor = ImGui::ColorConvertFloat4ToU32(ImVec4(1.0f, 1.0f, 1.0f, 0.9f));
-				constexpr float lineThickness = 1.5f;
-
-				// Fill area below the curve using quads
-				for (int i = 0; i < lineCount - 1; ++i) {
-					ImVec2 quad[4] = {points[i], points[i + 1],
-									  ImVec2(points[i + 1].x, canvas_pos.y + canvas_size.y),
-									  ImVec2(points[i].x, canvas_pos.y + canvas_size.y)};
-					drawList->AddConvexPolyFilled(quad, 4, fillColor);
-				}
-
-				// Draw the spectrum line on top.
-				drawList->AddPolyline(points.data(), lineCount, lineColor, false, lineThickness);
-			}
-
-			ImGui::End();
-			ImGui::PopStyleColor();
-			ImGui::PopStyleVar();
+			SpectrumAnalyser::drawSpectrumWindow(
+				state.smoothedMagnitudes,
+				devices,
+				state.selectedDeviceIndex,
+				displaySize,
+				SIDEBAR_WIDTH
+			);
 		}
 	}
 	restoreOriginalStyle(ImGui::GetStyle(), state);
