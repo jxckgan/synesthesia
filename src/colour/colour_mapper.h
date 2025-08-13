@@ -2,6 +2,7 @@
 
 #include <array>
 #include <vector>
+#include <cmath>
 
 class ColourMapper {
 public:
@@ -51,7 +52,7 @@ public:
 
 private:
 	// Validation helpers
-	static constexpr bool isValidFrequencyMagnitudePair(float frequency, float magnitude) {
+	static bool isValidFrequencyMagnitudePair(float frequency, float magnitude) {
 		return std::isfinite(frequency) && std::isfinite(magnitude) && 
 		       frequency > 0.0f && magnitude >= 0.0f;
 	}
