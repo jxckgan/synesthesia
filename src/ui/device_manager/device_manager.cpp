@@ -18,31 +18,20 @@ bool DeviceManager::selectDevice(DeviceState& deviceState,
                                 AudioInput& audioInput,
                                 const std::vector<AudioInput::DeviceInfo>& devices,
                                 int newDeviceIndex) {
-    if (newDeviceIndex < 0 || static_cast<size_t>(newDeviceIndex) >= devices.size()) {
+    DeviceSelectionResult result = validateAndSelectDevice(deviceState, audioInput, devices, newDeviceIndex);
+    
+    if (result.success) {
+        deviceState.streamError = false;
+        deviceState.streamErrorMessage.clear();
+    } else {
         deviceState.streamError = true;
-        deviceState.streamErrorMessage = "Invalid device selection index.";
-        deviceState.selectedDeviceIndex = -1;
-        return false;
+        deviceState.streamErrorMessage = result.errorMessage;
+        if (newDeviceIndex < 0 || static_cast<size_t>(newDeviceIndex) >= devices.size()) {
+            deviceState.selectedDeviceIndex = -1;
+        }
     }
     
-    deviceState.channelNames.clear();
-    int maxChannels = devices[newDeviceIndex].maxChannels;
-    
-    deviceState.selectedChannelIndex = 0;
-    int channelsToUse = std::min(maxChannels, 16);
-
-    if (!audioInput.initStream(devices[newDeviceIndex].paIndex, channelsToUse)) {
-        deviceState.streamError = true;
-        deviceState.streamErrorMessage = "Error opening device!";
-        return false;
-    }
-    
-    deviceState.selectedDeviceIndex = newDeviceIndex;
-    deviceState.streamError = false;
-    deviceState.streamErrorMessage.clear();
-    createChannelNames(deviceState, channelsToUse);
-    
-    return true;
+    return result.success;
 }
 
 void DeviceManager::selectChannel(DeviceState& deviceState, 
@@ -97,17 +86,14 @@ void DeviceManager::renderChannelSelection(DeviceState& deviceState,
 }
 
 void DeviceManager::createChannelNames(DeviceState& deviceState, int channelsToUse) {
-    static std::vector<std::string> channelNameStrings;
-    channelNameStrings.clear();
-    channelNameStrings.reserve(channelsToUse);
+    deviceState.channelNameStrings.clear();
+    deviceState.channelNameStrings.reserve(channelsToUse);
+    deviceState.channelNames.clear();
+    deviceState.channelNames.reserve(channelsToUse);
     
     for (int i = 0; i < channelsToUse; i++) {
-        channelNameStrings.push_back("Channel " + std::to_string(i + 1));
-    }
-    
-    deviceState.channelNames.reserve(channelsToUse);
-    for (const auto& name : channelNameStrings) {
-        deviceState.channelNames.push_back(name.c_str());
+        deviceState.channelNameStrings.push_back("Channel " + std::to_string(i + 1));
+        deviceState.channelNames.push_back(deviceState.channelNameStrings.back().c_str());
     }
 }
 
@@ -118,5 +104,29 @@ void DeviceManager::resetDeviceState(DeviceState& deviceState) {
     deviceState.streamErrorMessage.clear();
     deviceState.deviceNames.clear();
     deviceState.channelNames.clear();
+    deviceState.channelNameStrings.clear();
     deviceState.deviceNamesPopulated = false;
+}
+
+DeviceSelectionResult DeviceManager::validateAndSelectDevice(DeviceState& deviceState,
+                                                           AudioInput& audioInput,
+                                                           const std::vector<AudioInput::DeviceInfo>& devices,
+                                                           int newDeviceIndex) {
+    if (newDeviceIndex < 0 || static_cast<size_t>(newDeviceIndex) >= devices.size()) {
+        return {false, "Invalid device selection index."};
+    }
+    
+    deviceState.channelNames.clear();
+    int maxChannels = devices[newDeviceIndex].maxChannels;
+    deviceState.selectedChannelIndex = 0;
+    int channelsToUse = std::min(maxChannels, 16);
+
+    if (!audioInput.initStream(devices[newDeviceIndex].paIndex, channelsToUse)) {
+        return {false, "Error opening device!"};
+    }
+    
+    deviceState.selectedDeviceIndex = newDeviceIndex;
+    createChannelNames(deviceState, channelsToUse);
+    
+    return {true, ""};
 }

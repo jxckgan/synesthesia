@@ -25,11 +25,17 @@ public:
 	};
 
 	static constexpr float MIN_WAVELENGTH = 380.0f;
-	static constexpr float MAX_WAVELENGTH = 750.0f;
+	static constexpr float MAX_WAVELENGTH = 780.0f;
 	static constexpr float MIN_FREQ = 20.0f;
 	static constexpr float MAX_FREQ = 20000.0f;
 	static constexpr float SPEED_OF_SOUND = 343.0f;
 	static constexpr size_t CIE_TABLE_SIZE = 90;
+	
+	// Colour mapping constants
+	static constexpr float SUB_AUDIO_BRIGHTNESS_BOOST = 3.0f;
+	static constexpr float MAX_GAIN = 4.0f;
+	static constexpr float SPREAD_NORMALISATION = 5000.0f;
+	static constexpr float SPECTRAL_FLATNESS_WEIGHT = 0.5f;
 
 	static ColourResult frequenciesToColour(const std::vector<float>& frequencies,
 											const std::vector<float>& magnitudes,
@@ -44,6 +50,15 @@ public:
 		const std::vector<float>& spectrum, float sampleRate);
 
 private:
+	// Validation helpers
+	static constexpr bool isValidFrequencyMagnitudePair(float frequency, float magnitude) {
+		return std::isfinite(frequency) && std::isfinite(magnitude) && 
+		       frequency > 0.0f && magnitude >= 0.0f;
+	}
+	
+	static constexpr bool isValidFrequency(float frequency) {
+		return frequency >= MIN_FREQ && frequency <= MAX_FREQ;
+	}
 	static void XYZtoRGB(float X, float Y, float Z, float& r, float& g, float& b);
 	static void RGBtoXYZ(float r, float g, float b, float& X, float& Y, float& Z);
 	static void XYZtoLab(float X, float Y, float Z, float& L, float& a, float& b);

@@ -5,6 +5,7 @@
 #include <algorithm>
 
 #include "colour_mapper.h"
+#include "ui.h"
 
 namespace Controls {
 
@@ -13,22 +14,17 @@ void renderFrequencyInfoPanel(AudioInput& audioInput, float* clear_color) {
         ImGui::Indent(10);
         
         auto peaks = audioInput.getFrequencyPeaks();
+        
+        std::vector<float> frequencies, magnitudes;
+        frequencies.reserve(peaks.size());
+        magnitudes.reserve(peaks.size());
+        for (const auto& peak : peaks) {
+            frequencies.push_back(peak.frequency);
+            magnitudes.push_back(peak.magnitude);
+        }
+        
         auto currentColourResult = ColourMapper::frequenciesToColour(
-            [&peaks] {
-                std::vector<float> f;
-                f.reserve(peaks.size());
-                for (const auto& p : peaks)
-                    f.push_back(p.frequency);
-                return f;
-            }(),
-            [&peaks] {
-                std::vector<float> m;
-                m.reserve(peaks.size());
-                for (const auto& p : peaks)
-                    m.push_back(p.magnitude);
-                return m;
-            }(),
-            {}, 44100.0f, 0.8f);
+            frequencies, magnitudes, {}, UIConstants::DEFAULT_SAMPLE_RATE, UIConstants::DEFAULT_GAMMA);
 
         if (!peaks.empty()) {
             ImGui::Text("Dominant: %.1f Hz", peaks[0].frequency);
@@ -66,7 +62,7 @@ void renderVisualiserSettingsPanel(SpringSmoother& colourSmoother,
 
         ImGui::SetCursorPosX(sidebarPadding);
         if (ImGui::Button("Reset Smoothing", ImVec2(130, buttonHeight))) {
-            smoothingAmount = 0.6f;
+            smoothingAmount = UIConstants::DEFAULT_SMOOTHING_SPEED;
             colourSmoother.setSmoothingAmount(smoothingAmount);
         }
 

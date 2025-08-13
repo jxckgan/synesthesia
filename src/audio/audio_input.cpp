@@ -29,7 +29,6 @@ AudioInput::~AudioInput() {
 	processor.stop();
 }
 
-// Retrieves a list of available input devices
 std::vector<AudioInput::DeviceInfo> AudioInput::getInputDevices() {
 	std::vector<DeviceInfo> devices;
 	const int deviceCount = Pa_GetDeviceCount();
@@ -52,7 +51,6 @@ std::vector<AudioInput::DeviceInfo> AudioInput::getInputDevices() {
 	return devices;
 }
 
-// Initialises the audio stream for a specified device index
 bool AudioInput::initStream(const int deviceIndex, const int numChannels) {
 	stopStream();
 
@@ -62,15 +60,12 @@ bool AudioInput::initStream(const int deviceIndex, const int numChannels) {
 		return false;
 	}
 
-	// Ensure we don't request more channels than available
 	channelCount = std::min(numChannels, deviceInfo->maxInputChannels);
 	if (channelCount < 1)
 		channelCount = 1;
 
-	// Reset active channel
 	activeChannel = 0;
 
-	// Resize DC removal buffers for each channel
 	previousInputs.resize(channelCount, 0.0f);
 	previousOutputs.resize(channelCount, 0.0f);
 
@@ -104,19 +99,15 @@ bool AudioInput::initStream(const int deviceIndex, const int numChannels) {
 	return true;
 }
 
-// Maps the current dominant frequency to a colour
 void AudioInput::getColourForCurrentFrequency(float& r, float& g, float& b, float& freq,
 											  float& wavelength) const {
 	processor.getColourForCurrentFrequency(r, g, b, freq, wavelength);
 }
 
-// Returns the current list of frequency peaks
 std::vector<FFTProcessor::FrequencyPeak> AudioInput::getFrequencyPeaks() const {
-	// Delegate to processor
 	return processor.getFrequencyPeaks();
 }
 
-// Stops and cleans up the current audio stream
 void AudioInput::stopStream() {
 	if (stream) {
 		Pa_StopStream(stream);
@@ -125,7 +116,6 @@ void AudioInput::stopStream() {
 	}
 }
 
-// Processes incoming audio data
 int AudioInput::audioCallback(const void* input, void* output, const unsigned long frameCount,
 							  const PaStreamCallbackTimeInfo* timeInfo,
 							  PaStreamCallbackFlags statusFlags, void* userData) {
@@ -142,28 +132,22 @@ int AudioInput::audioCallback(const void* input, void* output, const unsigned lo
 			processedBuffer.resize(frameCount);
 		}
 
-		// Get the active channel the user has selected
 		int activeChannel = audio->activeChannel;
 		const int channelCount = audio->channelCount;
 
-		// Ensure active channel is valid
 		if (activeChannel >= channelCount) {
 			activeChannel = 0;
 			audio->activeChannel = 0;
 		}
 
-		// Apply DC removal and noise gate for the active channel
 		for (unsigned long i = 0; i < frameCount; ++i) {
-			// Get sample from the specific channel
 			const float sample = inBuffer[i * channelCount + activeChannel];
 
-			// DC Offset Removal for the active channel
 			float filteredSample = sample - audio->previousInputs[activeChannel] +
 								   audio->dcRemovalAlpha * audio->previousOutputs[activeChannel];
 			audio->previousInputs[activeChannel] = sample;
 			audio->previousOutputs[activeChannel] = filteredSample;
 
-			// Noise Gate
 			if (std::abs(filteredSample) < audio->noiseGateThreshold) {
 				filteredSample = 0.0f;
 			}
@@ -171,13 +155,11 @@ int AudioInput::audioCallback(const void* input, void* output, const unsigned lo
 			processedBuffer[i] = filteredSample;
 		}
 
-		// Queue the processed data for the worker thread
 		audio->processor.queueAudioData(processedBuffer.data(), frameCount, audio->sampleRate);
 	}
 
 	catch (const std::exception& ex) {
 		std::cerr << "Warning in audio callback: " << ex.what() << "\n";
-		// Continue processing even when there's an error
 		return paContinue;
 	} catch (...) {
 		std::cerr << "Unknown warning in audio callback.\n";

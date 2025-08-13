@@ -28,14 +28,13 @@ void SpectrumAnalyser::drawSpectrumWindow(
     ImVec2 canvasSize = ImGui::GetContentRegionAvail();
     ImDrawList* drawList = ImGui::GetWindowDrawList();
 
-    // Draw background
     drawBackground(drawList, canvasPos, canvasSize);
 
-    // Calculate and draw spectrum
     std::vector<ImVec2> points(LINE_COUNT);
     float sampleRate = getSampleRate(devices, selectedDeviceIndex);
     
-    calculateSpectrumPoints(points, smoothedMagnitudes, sampleRate, canvasPos, canvasSize);
+    SpectrumRenderContext context{smoothedMagnitudes, sampleRate, canvasPos, canvasSize};
+    calculateSpectrumPoints(points, context);
     smoothPoints(points);
     drawSpectrum(drawList, points, canvasPos, canvasSize);
 
@@ -55,7 +54,6 @@ float SpectrumAnalyser::getSampleRate(const std::vector<AudioInput::DeviceInfo>&
 }
 
 void SpectrumAnalyser::drawBackground(ImDrawList* drawList, const ImVec2& canvasPos, const ImVec2& canvasSize) {
-    // Draw subtle background gradient
     drawList->AddRectFilledMultiColor(
         ImVec2(canvasPos.x, canvasPos.y),
         ImVec2(canvasPos.x + canvasSize.x, canvasPos.y + canvasSize.y),
@@ -65,58 +63,49 @@ void SpectrumAnalyser::drawBackground(ImDrawList* drawList, const ImVec2& canvas
         ImGui::ColorConvertFloat4ToU32(ImVec4(0.0f, 0.0f, 0.0f, 0.4f)));
 }
 
-void SpectrumAnalyser::calculateSpectrumPoints(
-    std::vector<ImVec2>& points,
-    const std::vector<float>& smoothedMagnitudes,
-    float sampleRate,
-    const ImVec2& canvasPos,
-    const ImVec2& canvasSize
-) {
-    // Normalise Y-Axis for spectrum dynamically
+void SpectrumAnalyser::calculateSpectrumPoints(std::vector<ImVec2>& points, 
+                                               const SpectrumRenderContext& context) {
     float maxMagnitude = 0.0f;
-    if (!smoothedMagnitudes.empty()) {
-        maxMagnitude = *std::ranges::max_element(smoothedMagnitudes);
+    if (!context.magnitudes.empty()) {
+        maxMagnitude = *std::ranges::max_element(context.magnitudes);
     }
     float yMax = maxMagnitude > 0.0001f ? maxMagnitude * 1.1f : 0.1f;
 
-    const float binSize = sampleRate / FFTProcessor::FFT_SIZE;
+    const float binSize = context.sampleRate / FFTProcessor::FFT_SIZE;
     constexpr float minFreq = FFTProcessor::MIN_FREQ;
     constexpr float maxFreq = FFTProcessor::MAX_FREQ;
     const float logMinFreq = std::log10(minFreq);
     const float logMaxFreq = std::log10(maxFreq);
 
-    // Fill point array with spectrum data using logarithmic scale
     if (const float logFreqRange = logMaxFreq - logMinFreq;
-        !smoothedMagnitudes.empty() && binSize > 0.0f && logFreqRange > 0.0f) {
+        !context.magnitudes.empty() && binSize > 0.0f && logFreqRange > 0.0f) {
         
         for (int i = 0; i < LINE_COUNT; ++i) {
-            // Calculate frequency for this point using logarithmic interpolation
-            float logPosition = static_cast<float>(i) / (LINE_COUNT - 1);  // 0.0 to 1.0
+            float logPosition = static_cast<float>(i) / (LINE_COUNT - 1);
             float currentLogFreq = logMinFreq + logPosition * logFreqRange;
             float freq = std::pow(10.0f, currentLogFreq);
 
-            // Calculate corresponding bin index
             float binIndex = freq / binSize;
 
-            // Ensure bin index is in valid range and interpolate
+            if (context.magnitudes.empty()) {
+                continue;
+            }
+            
             int binIndexFloor = static_cast<int>(binIndex);
-            float t = binIndex - binIndexFloor;  // Interpolation factor
+            float t = binIndex - binIndexFloor;
 
-            // Clamp indices safely
             int idx0 = std::min(std::max(binIndexFloor, 0),
-                               static_cast<int>(smoothedMagnitudes.size()) - 1);
-            int idx1 = std::min(idx0 + 1, static_cast<int>(smoothedMagnitudes.size()) - 1);
+                               static_cast<int>(context.magnitudes.size()) - 1);
+            int idx1 = std::min(idx0 + 1, static_cast<int>(context.magnitudes.size()) - 1);
 
-            float magnitude = smoothedMagnitudes[idx0] * (1.0f - t) +
-                             smoothedMagnitudes[idx1] * t;
+            float magnitude = context.magnitudes[idx0] * (1.0f - t) +
+                             context.magnitudes[idx1] * t;
 
-            // Calculate x position
-            float xPos = canvasPos.x + static_cast<float>(i) / (LINE_COUNT - 1) * canvasSize.x;
+            float xPos = context.canvasPos.x + static_cast<float>(i) / (LINE_COUNT - 1) * context.canvasSize.x;
 
-            // Calculate y position
-            float height = magnitude / yMax * canvasSize.y * 0.7f;
-            height = std::min(height, canvasSize.y * 0.75f);
-            float yPos = canvasPos.y + canvasSize.y - height;
+            float height = magnitude / yMax * context.canvasSize.y * 0.7f;
+            height = std::min(height, context.canvasSize.y * 0.75f);
+            float yPos = context.canvasPos.y + context.canvasSize.y - height;
 
             points[i] = ImVec2(xPos, yPos);
         }
@@ -124,10 +113,9 @@ void SpectrumAnalyser::calculateSpectrumPoints(
 }
 
 void SpectrumAnalyser::smoothPoints(std::vector<ImVec2>& points) {
-    // Apply smoothing to the calculated points
     std::vector<float> smoothedYPositions(LINE_COUNT);
     for (int i = 0; i < LINE_COUNT; ++i) {
-        constexpr int smoothingWindow = 7;
+        constexpr int smoothingWindow = SMOOTHING_WINDOW_SIZE;
         float sum = 0.0f;
         int count = 0;
         int halfWindow = smoothingWindow / 2;
@@ -136,7 +124,7 @@ void SpectrumAnalyser::smoothPoints(std::vector<ImVec2>& points) {
             sum += points[j].y;
             count++;
         }
-        smoothedYPositions[i] = count > 0 ? sum / count : points[i].y;  // Avoid division by zero
+        smoothedYPositions[i] = count > 0 ? sum / count : points[i].y;
     }
 
     for (int i = 0; i < LINE_COUNT; ++i) {
@@ -145,12 +133,10 @@ void SpectrumAnalyser::smoothPoints(std::vector<ImVec2>& points) {
 }
 
 void SpectrumAnalyser::drawSpectrum(ImDrawList* drawList, const std::vector<ImVec2>& points, const ImVec2& canvasPos, const ImVec2& canvasSize) {
-    // Define colours for drawing
     ImU32 fillColor = ImGui::ColorConvertFloat4ToU32(ImVec4(1.0f, 1.0f, 1.0f, 0.1f));
     ImU32 lineColor = ImGui::ColorConvertFloat4ToU32(ImVec4(1.0f, 1.0f, 1.0f, 0.9f));
-    constexpr float lineThickness = 1.5f;
+    constexpr float lineThickness = SPECTRUM_LINE_THICKNESS;
 
-    // Fill area below the curve using quads
     for (int i = 0; i < LINE_COUNT - 1; ++i) {
         ImVec2 quad[4] = {points[i], points[i + 1],
                          ImVec2(points[i + 1].x, canvasPos.y + canvasSize.y),
@@ -158,6 +144,5 @@ void SpectrumAnalyser::drawSpectrum(ImDrawList* drawList, const std::vector<ImVe
         drawList->AddConvexPolyFilled(quad, 4, fillColor);
     }
 
-    // Draw the spectrum line on top
     drawList->AddPolyline(points.data(), LINE_COUNT, lineColor, false, lineThickness);
 }

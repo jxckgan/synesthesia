@@ -3,6 +3,11 @@
 #include <algorithm>
 #include <numeric>
 
+constexpr float DENSITY_SMOOTH_FACTOR = 0.7f;
+constexpr float DENSITY_NEW_FACTOR = 0.3f;
+constexpr float FREQ_SMOOTH_FACTOR = 0.8f;
+constexpr float FREQ_NEW_FACTOR = 0.2f;
+
 ZeroCrossingDetector::ZeroCrossingDetector()
 	: sampleBuffer(BUFFER_SIZE, 0.0f),
 	  lastSample(0.0f),
@@ -16,7 +21,6 @@ void ZeroCrossingDetector::processSamples(const float* buffer, const size_t numS
 	if (!buffer || numSamples == 0)
 		return;
 
-	// Count zero crossings
 	size_t localCrossings = 0;
 	float currentSample = lastSample;
 
@@ -33,7 +37,6 @@ void ZeroCrossingDetector::processSamples(const float* buffer, const size_t numS
 	{
 		std::lock_guard lock(bufferMutex);
 
-		// Add new samples
 		for (size_t i = 0; i < numSamples; ++i) {
 			const size_t index = (sampleCount + i) % BUFFER_SIZE;
 			sampleBuffer[index] = buffer[i];
@@ -52,17 +55,13 @@ void ZeroCrossingDetector::analyseZeroCrossings() {
 	if (sampleCount == 0)
 		return;
 
-	// Calculate crossing density
 	const float timeSpan = static_cast<float>(sampleCount) / sampleRate;
 	const float newDensity = static_cast<float>(zeroCrossings) / timeSpan;
 
-	// Smoothing
-	zeroCrossingDensity = zeroCrossingDensity * 0.7f + newDensity * 0.3f;
+	zeroCrossingDensity = zeroCrossingDensity * DENSITY_SMOOTH_FACTOR + newDensity * DENSITY_NEW_FACTOR;
 
-	// Estimate frequency
 	const float roughFreq = zeroCrossingDensity / 2.0f;
 
-	// Refine the frequency
 	std::vector<float> periods;
 	periods.reserve(zeroCrossings);
 
@@ -88,19 +87,16 @@ void ZeroCrossingDetector::analyseZeroCrossings() {
 		}
 	}
 
-	// Calculate median period
 	if (!periods.empty()) {
 		const size_t middle = periods.size() / 2;
 		std::ranges::nth_element(periods, periods.begin() + middle);
 		const float medianPeriod = periods[middle];
 
-		// Convert period to frequency
 		const float refinedFreq = 1.0f / medianPeriod;
 
-		// Apply smoothing for stable output
-		estimatedFrequency = estimatedFrequency * 0.8f + refinedFreq * 0.2f;
+		estimatedFrequency = estimatedFrequency * FREQ_SMOOTH_FACTOR + refinedFreq * FREQ_NEW_FACTOR;
 	} else {
-		estimatedFrequency = roughFreq;	 // Fall back to rough estimate if no valid periods
+		estimatedFrequency = roughFreq;
 	}
 
 	sampleCount = BUFFER_SIZE / 2;

@@ -13,7 +13,13 @@ struct DeviceState {
     
     std::vector<const char*> deviceNames;
     std::vector<const char*> channelNames;
+    std::vector<std::string> channelNameStrings;
     bool deviceNamesPopulated = false;
+};
+
+struct DeviceSelectionResult {
+    bool success;
+    std::string errorMessage;
 };
 
 class DeviceManager {
@@ -41,6 +47,10 @@ public:
 private:
     static void createChannelNames(DeviceState& deviceState, int channelsToUse);
     static void resetDeviceState(DeviceState& deviceState);
+    static DeviceSelectionResult validateAndSelectDevice(DeviceState& deviceState,
+                                                        AudioInput& audioInput,
+                                                        const std::vector<AudioInput::DeviceInfo>& devices,
+                                                        int newDeviceIndex);
 };
 
 #endif

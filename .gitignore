@@ -9,3 +9,7 @@
 # misc
 /.vscode/
 /.idea/
+
+# claude
+/.claude/
+/claude.md

@@ -111,7 +111,6 @@ LRESULT WINAPI WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
 // Main code
 int main(int, char**)
 {
-    // Create application window
     WNDCLASSEXW wc = { 
         sizeof(wc), 
         CS_CLASSDC, 
@@ -119,8 +118,8 @@ int main(int, char**)
         0L, 
         0L, 
         GetModuleHandle(nullptr),
-        LoadIcon(GetModuleHandle(nullptr), MAKEINTRESOURCE(IDI_ICON1)), // Large icon
-        LoadIcon(GetModuleHandle(nullptr), MAKEINTRESOURCE(IDI_ICON1)), // Small icon
+        LoadIcon(GetModuleHandle(nullptr), MAKEINTRESOURCE(IDI_ICON1)),
+        LoadIcon(GetModuleHandle(nullptr), MAKEINTRESOURCE(IDI_ICON1)),
         nullptr, 
         nullptr, 
         L"Synesthesia", 
@@ -145,7 +144,6 @@ int main(int, char**)
         sizeof(captionColor)
     );
 
-    // Initialize Direct3D
     if (!CreateDeviceD3D(hwnd))
     {
         CleanupDeviceD3D();
@@ -153,21 +151,17 @@ int main(int, char**)
         return 1;
     }
 
-    // Show the window
     ::ShowWindow(hwnd, SW_SHOWDEFAULT);
     ::UpdateWindow(hwnd);
 
-    // Setup Dear ImGui context
     IMGUI_CHECKVERSION();
     ImGui::CreateContext();
     ImGuiIO& io = ImGui::GetIO(); (void)io;
     io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
     io.ConfigFlags |= ImGuiConfigFlags_NavEnableGamepad;
 
-    // Setup Dear ImGui style
     ImGui::StyleColorsDark();
 
-    // Setup Platform/Renderer backends
     ImGui_ImplWin32_Init(hwnd);
 
     ImGui_ImplDX12_InitInfo init_info = {};
@@ -188,11 +182,9 @@ int main(int, char**)
 
     UIState uiState;
 
-    // Main loop
     bool done = false;
     while (!done)
     {
-        // Poll and handle messages (inputs, window resize, etc.)
         MSG msg;
         while (::PeekMessage(&msg, nullptr, 0U, 0U, PM_REMOVE))
         {
@@ -204,7 +196,6 @@ int main(int, char**)
         if (done)
             break;
 
-        // Handle window screen locked
         if (g_SwapChainOccluded && g_pSwapChain->Present(0, DXGI_PRESENT_TEST) == DXGI_STATUS_OCCLUDED)
         {
             ::Sleep(10);
@@ -212,15 +203,12 @@ int main(int, char**)
         }
         g_SwapChainOccluded = false;
 
-        // Start the Dear ImGui frame
         ImGui_ImplDX12_NewFrame();
         ImGui_ImplWin32_NewFrame();
         ImGui::NewFrame();
 
-        // Call the UI update logic
         updateUI(audioInput, devices, &clear_color.x, io, uiState);
 
-        // Rendering
         ImGui::Render();
 
         FrameContext* frameCtx = WaitForNextFrameResources();
@@ -237,7 +225,6 @@ int main(int, char**)
         g_pd3dCommandList->Reset(frameCtx->CommandAllocator, nullptr);
         g_pd3dCommandList->ResourceBarrier(1, &barrier);
 
-        // Render Dear ImGui graphics
         const float clear_color_with_alpha[4] = { clear_color.x * clear_color.w, clear_color.y * clear_color.w, clear_color.z * clear_color.w, clear_color.w };
         g_pd3dCommandList->ClearRenderTargetView(g_mainRenderTargetDescriptor[backBufferIdx], clear_color_with_alpha, 0, nullptr);
         g_pd3dCommandList->OMSetRenderTargets(1, &g_mainRenderTargetDescriptor[backBufferIdx], FALSE, nullptr);
@@ -250,7 +237,6 @@ int main(int, char**)
 
         g_pd3dCommandQueue->ExecuteCommandLists(1, (ID3D12CommandList* const*)&g_pd3dCommandList);
 
-        // Present
         HRESULT hr = g_pSwapChain->Present(1, 0);
         g_SwapChainOccluded = (hr == DXGI_STATUS_OCCLUDED);
 
@@ -262,7 +248,6 @@ int main(int, char**)
 
     WaitForLastSubmittedFrame();
 
-    // Cleanup
     ImGui_ImplDX12_Shutdown();
     ImGui_ImplWin32_Shutdown();
     ImGui::DestroyContext();
@@ -274,11 +259,9 @@ int main(int, char**)
     return 0;
 }
 
-// Helper functions
 
 bool CreateDeviceD3D(HWND hWnd)
 {
-    // Setup swap chain
     DXGI_SWAP_CHAIN_DESC1 sd;
     {
         ZeroMemory(&sd, sizeof(sd));
@@ -296,19 +279,16 @@ bool CreateDeviceD3D(HWND hWnd)
         sd.Stereo = FALSE;
     }
 
-    // [DEBUG] Enable debug interface
 #ifdef DX12_ENABLE_DEBUG_LAYER
     ID3D12Debug* pdx12Debug = nullptr;
     if (SUCCEEDED(D3D12GetDebugInterface(IID_PPV_ARGS(&pdx12Debug))))
         pdx12Debug->EnableDebugLayer();
 #endif
 
-    // Create device
     D3D_FEATURE_LEVEL featureLevel = D3D_FEATURE_LEVEL_11_0;
     if (D3D12CreateDevice(nullptr, featureLevel, IID_PPV_ARGS(&g_pd3dDevice)) != S_OK)
         return false;
 
-    // [DEBUG] Setup debug interface to break on any warnings/errors
 #ifdef DX12_ENABLE_DEBUG_LAYER
     if (pdx12Debug != nullptr)
     {
@@ -443,7 +423,7 @@ void WaitForLastSubmittedFrame()
 
     UINT64 fenceValue = frameCtx->FenceValue;
     if (fenceValue == 0)
-        return; // No fence was signaled
+        return;
 
     frameCtx->FenceValue = 0;
     if (g_fence->GetCompletedValue() >= fenceValue)
@@ -463,7 +443,7 @@ FrameContext* WaitForNextFrameResources()
 
     FrameContext* frameCtx = &g_frameContext[nextFrameIndex % APP_NUM_FRAMES_IN_FLIGHT];
     UINT64 fenceValue = frameCtx->FenceValue;
-    if (fenceValue != 0) // means no fence was signaled
+    if (fenceValue != 0)
     {
         frameCtx->FenceValue = 0;
         g_fence->SetEventOnCompletion(fenceValue, g_fenceEvent);
@@ -476,10 +456,8 @@ FrameContext* WaitForNextFrameResources()
     return frameCtx;
 }
 
-// Forward declare message handler from imgui_impl_win32.cpp
 extern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
 
-// Win32 message handler
 LRESULT WINAPI WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
 {
     if (ImGui_ImplWin32_WndProcHandler(hWnd, msg, wParam, lParam))
@@ -498,7 +476,7 @@ LRESULT WINAPI WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
         }
         return 0;
     case WM_SYSCOMMAND:
-        if ((wParam & 0xfff0) == SC_KEYMENU) // Disable ALT application menu
+        if ((wParam & 0xfff0) == SC_KEYMENU)
             return 0;
         break;
     case WM_DESTROY:

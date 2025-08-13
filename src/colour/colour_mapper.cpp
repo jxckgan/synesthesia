@@ -7,14 +7,23 @@
 #include <vector>
 
 void ColourMapper::interpolateCIE(float wavelength, float& X, float& Y, float& Z) {
-	// Clamp wavelength to valid CIE 1931 range
+	// Handle extended infrared range for sub-20Hz frequencies
+	if (wavelength > 825.0f) {
+		// For wavelengths beyond the CIE table, extrapolate from the last entry
+		// This gives very deep red/infrared colours for sub-audio frequencies
+		const auto& lastEntry = CIE_1931[CIE_TABLE_SIZE - 1];
+		// Make sub-20Hz frequencies more visible by boosting intensity
+		X = lastEntry[1] * 0.1f * SUB_AUDIO_BRIGHTNESS_BOOST;
+		Y = lastEntry[2] * 0.1f * SUB_AUDIO_BRIGHTNESS_BOOST;
+		Z = lastEntry[3] * 0.1f * SUB_AUDIO_BRIGHTNESS_BOOST;
+		return;
+	}
+	
 	wavelength = std::clamp(wavelength, 380.0f, 825.0f);
 
-	// Calculate index
 	const float indexFloat = (wavelength - 380.0f) / 5.0f;
 	auto index = static_cast<size_t>(std::floor(indexFloat));
 
-	// Ensure index is within valid range
 	if (index >= CIE_TABLE_SIZE - 1) {
 		index = CIE_TABLE_SIZE - 2;
 	}
@@ -25,7 +34,6 @@ void ColourMapper::interpolateCIE(float wavelength, float& X, float& Y, float& Z
 	const float lambda0 = entry0[0];
 	const float lambda1 = entry1[0];
 
-	// Calculate interpolation factor
 	float t = 0.0f;
 	if (lambda1 > lambda0) {
 		t = (wavelength - lambda0) / (lambda1 - lambda0);
@@ -39,12 +47,10 @@ void ColourMapper::interpolateCIE(float wavelength, float& X, float& Y, float& Z
 
 void ColourMapper::XYZtoRGB(const float X, const float Y, const float Z, float& r, float& g,
 							float& b) {
-	// Apply XYZ to linear RGB transformation matrix
 	r = 3.2406f * X - 1.5372f * Y - 0.4986f * Z;
 	g = -0.9689f * X + 1.8758f * Y + 0.0415f * Z;
 	b = 0.0557f * X - 0.2040f * Y + 1.0570f * Z;
 
-	// Apply gamma correction (linearRGB to sRGB)
 	auto gammaCorrect = [](const float c) {
 		return c <= 0.0031308f ? 12.92f * c : 1.055f * std::pow(c, 1.0f / 2.4f) - 0.055f;
 	};
@@ -59,7 +65,6 @@ void ColourMapper::RGBtoXYZ(float r, float g, float b, float& X, float& Y, float
 	g = std::clamp(g, 0.0f, 1.0f);
 	b = std::clamp(b, 0.0f, 1.0f);
 
-	// Convert sRGB to linear RGB
 	auto inverseGamma = [](const float c) {
 		return c <= 0.04045f ? c / 12.92f : std::pow((c + 0.055f) / 1.055f, 2.4f);
 	};
@@ -68,7 +73,6 @@ void ColourMapper::RGBtoXYZ(float r, float g, float b, float& X, float& Y, float
 	const float g_linear = inverseGamma(g);
 	const float b_linear = inverseGamma(b);
 
-	// Apply linear RGB to XYZ transformation matrix
 	X = 0.4124f * r_linear + 0.3576f * g_linear + 0.1805f * b_linear;
 	Y = 0.2126f * r_linear + 0.7152f * g_linear + 0.0722f * b_linear;
 	Z = 0.0193f * r_linear + 0.1192f * g_linear + 0.9505f * b_linear;
@@ -77,12 +81,10 @@ void ColourMapper::RGBtoXYZ(float r, float g, float b, float& X, float& Y, float
 // Convert XYZ to Lab colour space
 void ColourMapper::XYZtoLab(const float X, const float Y, const float Z, float& L, float& a,
 							float& b) {
-	// Normalise by white point
 	const float xr = REF_X > 0.0f ? X / REF_X : 0.0f;
 	const float yr = REF_Y > 0.0f ? Y / REF_Y : 0.0f;
 	const float zr = REF_Z > 0.0f ? Z / REF_Z : 0.0f;
 
-	// Apply nonlinear compression
 	auto f = [](const float t) {
 		constexpr float epsilon = 0.008856f;  // (6/29)^3
 		constexpr float kappa = 903.3f;		  // 116/delta^3, where delta = 6/29
@@ -97,7 +99,6 @@ void ColourMapper::XYZtoLab(const float X, const float Y, const float Z, float& 
 	a = 500.0f * (fx - fy);
 	b = 200.0f * (fy - fz);
 
-	// Ensure Lab values are in reasonable ranges
 	L = std::clamp(L, 0.0f, 100.0f);
 	a = std::clamp(a, -128.0f, 127.0f);
 	b = std::clamp(b, -128.0f, 127.0f);
@@ -109,12 +110,10 @@ void ColourMapper::LabtoXYZ(float L, float a, float b, float& X, float& Y, float
 	a = std::clamp(a, -128.0f, 127.0f);
 	b = std::clamp(b, -128.0f, 127.0f);
 
-	// Compute f(Y) from L
 	const float fY = (L + 16.0f) / 116.0f;
 	const float fX = fY + a / 500.0f;
 	const float fZ = fY - b / 200.0f;
 
-	// Inverse nonlinear compression
 	auto fInv = [](const float t) {
 		constexpr float delta = 6.0f / 29.0f;
 		constexpr float delta_squared = delta * delta;
@@ -125,7 +124,6 @@ void ColourMapper::LabtoXYZ(float L, float a, float b, float& X, float& Y, float
 	Y = REF_Y * fInv(fY);
 	Z = REF_Z * fInv(fZ);
 
-	// Ensure non-negative values
 	X = std::max(0.0f, X);
 	Y = std::max(0.0f, Y);
 	Z = std::max(0.0f, Z);
@@ -159,10 +157,19 @@ void ColourMapper::wavelengthToRGBCIE(float wavelength, float& r, float& g, floa
 
 // Logarithmic frequency to wavelength mapping
 float ColourMapper::logFrequencyToWavelength(const float freq) {
-	if (!std::isfinite(freq) || freq <= 0.001f)
-		return MIN_WAVELENGTH;
+	if (!std::isfinite(freq) || freq <= 0.0f)
+		return MAX_WAVELENGTH;  // Return deep red for invalid frequencies
 
-	// Calculate octave position
+	// Special handling for sub-20Hz frequencies to extend into deep red spectrum
+	if (freq < MIN_FREQ) {
+		// Map 0.1Hz to 20Hz onto the deep red portion (780nm to 750nm)
+		const float SUB_AUDIO_MIN = 0.1f;
+		const float t_sub = std::clamp((freq - SUB_AUDIO_MIN) / (MIN_FREQ - SUB_AUDIO_MIN), 0.0f, 1.0f);
+		// Use extended red range: 825nm (deep IR) down to 750nm (visible red)
+		return 825.0f - t_sub * (825.0f - 750.0f);
+	}
+
+	// Calculate octave position using logarithmic mapping for audible range
 	const float MIN_LOG_FREQ = std::log2(MIN_FREQ);
 	const float MAX_LOG_FREQ = std::log2(MAX_FREQ);
 	const float LOG_FREQ_RANGE = MAX_LOG_FREQ - MIN_LOG_FREQ;
@@ -171,8 +178,12 @@ float ColourMapper::logFrequencyToWavelength(const float freq) {
 	const float normalisedLogFreq = (logFreq - MIN_LOG_FREQ) / LOG_FREQ_RANGE;
 	const float t = std::clamp(normalisedLogFreq, 0.0f, 1.0f);
 
-	// Invert wavelength for an intuitive visualisation (bass notes are dark red, etc.)
-	return MAX_WAVELENGTH - t * (MAX_WAVELENGTH - MIN_WAVELENGTH);
+	// Map audible frequencies (20Hz-20kHz) to visible spectrum (750nm-380nm)
+	// Low frequencies (bass) -> longer wavelengths (red)
+	// High frequencies (treble) -> shorter wavelengths (violet/blue)
+	const float AUDIBLE_MIN_WAVELENGTH = 380.0f;  // Violet
+	const float AUDIBLE_MAX_WAVELENGTH = 750.0f;  // Red
+	return AUDIBLE_MAX_WAVELENGTH - t * (AUDIBLE_MAX_WAVELENGTH - AUDIBLE_MIN_WAVELENGTH);
 }
 
 // Calculate spectral characteristics
@@ -243,7 +254,7 @@ ColourMapper::SpectralCharacteristics ColourMapper::calculateSpectralCharacteris
 
 		if (totalWeight > 0.0f) {
 			result.spread = std::sqrt(spreadSum / totalWeight);
-			result.normalisedSpread = std::min(result.spread / 5000.0f, 1.0f);
+			result.normalisedSpread = std::min(result.spread / SPREAD_NORMALISATION, 1.0f);
 		}
 	}
 
@@ -253,10 +264,8 @@ ColourMapper::SpectralCharacteristics ColourMapper::calculateSpectralCharacteris
 ColourMapper::ColourResult ColourMapper::frequenciesToColour(
 	const std::vector<float>& frequencies, const std::vector<float>& magnitudes,
 	const std::vector<float>& spectralEnvelope, float sampleRate, float gamma) {
-	// Default dark result for no input
 	ColourResult result{0.1f, 0.1f, 0.1f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f};
 
-	// Validate inputs
 	bool hasPeaks = !frequencies.empty() && !magnitudes.empty();
 	bool hasEnvelope = !spectralEnvelope.empty() && sampleRate > 0.0f;
 
@@ -264,7 +273,6 @@ ColourMapper::ColourResult ColourMapper::frequenciesToColour(
 		return result;
 	}
 
-	// Calculate colour from dominant frequencies if available
 	ColourResult peakResult{0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f};
 	bool hasPeakColour = false;
 
@@ -275,10 +283,8 @@ ColourMapper::ColourResult ColourMapper::frequenciesToColour(
 		size_t validCount = 0;
 		float maxValidMagnitude = 0.0f;
 
-		// Validate data and find max magnitude for normalisation
 		for (size_t i = 0; i < count; ++i) {
-			if (!std::isfinite(frequencies[i]) || !std::isfinite(magnitudes[i]) ||
-				frequencies[i] <= 0.0f || magnitudes[i] < 0.0f) {
+			if (!isValidFrequencyMagnitudePair(frequencies[i], magnitudes[i])) {
 				continue;
 			}
 
@@ -286,14 +292,12 @@ ColourMapper::ColourResult ColourMapper::frequenciesToColour(
 			maxValidMagnitude = std::max(maxValidMagnitude, magnitudes[i]);
 		}
 
-		// Calculate colour if we have valid peaks
 		if (validCount > 0 && maxValidMagnitude > 0.0f) {
 			float maxFrequency = 0.0f;
 			float maxWeight = 0.0f;
 			float totalWeight = 0.0f;
 			for (size_t i = 0; i < count; ++i) {
-				if (!std::isfinite(frequencies[i]) || !std::isfinite(magnitudes[i]) ||
-					frequencies[i] <= 0.0f || magnitudes[i] < 0.0f) {
+				if (!isValidFrequencyMagnitudePair(frequencies[i], magnitudes[i])) {
 					continue;
 				}
 
@@ -315,7 +319,6 @@ ColourMapper::ColourResult ColourMapper::frequenciesToColour(
 				float b_blend = 0.0f;
 				float dominantWavelength = logFrequencyToWavelength(maxFrequency);
 
-				// Convert each frequency to a colour and accumulate in Lab space
 				for (size_t i = 0; i < count; ++i) {
 					if (weights[i] <= 0.0f)
 						continue;
@@ -323,21 +326,17 @@ ColourMapper::ColourResult ColourMapper::frequenciesToColour(
 					float weight = weights[i] / totalWeight;
 					float wavelength = logFrequencyToWavelength(frequencies[i]);
 
-					// Get colour in RGB
 					float r, g, b;
 					wavelengthToRGBCIE(wavelength, r, g, b);
 
-					// Convert to Lab for perceptual blending
 					float L, a, b_comp;
 					RGBtoLab(r, g, b, L, a, b_comp);
 
-					// Weighted contribution to final colour
 					L_blend += L * weight;
 					a_blend += a * weight;
 					b_blend += b_comp * weight;
 				}
 
-				// Convert blended Lab back to RGB
 				LabtoRGB(L_blend, a_blend, b_blend, peakResult.r, peakResult.g, peakResult.b);
 
 				peakResult.dominantWavelength = dominantWavelength;
@@ -351,30 +350,31 @@ ColourMapper::ColourResult ColourMapper::frequenciesToColour(
 		}
 	}
 
-	// Calculate colour from spectral envelope if available
 	ColourResult envelopeResult{0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f};
 	bool hasEnvelopeColour = false;
+	
+	// Calculate spectral characteristics once for reuse (if needed)
+	SpectralCharacteristics spectralStats{SPECTRAL_FLATNESS_WEIGHT, 0.0f, 0.0f, 0.0f};
+	if (hasEnvelope) {
+		spectralStats = calculateSpectralCharacteristics(spectralEnvelope, sampleRate);
+	}
 
 	if (hasEnvelope) {
 		const size_t binCount = spectralEnvelope.size();
 
-		// Create frequency and weight arrays for the spectral envelope
 		std::vector<float> envelopeFrequencies;
 		std::vector<float> envelopeWeights;
 		envelopeFrequencies.reserve(binCount);
 		envelopeWeights.reserve(binCount);
 
-		// Calculate weighted centroid to find dominant frequency
 		float totalEnvelopeWeight = 0.0f;
 		float maxEnvelopeWeight = 0.0f;
 		float dominantEnvelopeFreq = 0.0f;
 
-		// Collect valid data and calculate basic statistics
 		for (size_t i = 0; i < binCount; ++i) {
 			float freq;
 			freq = static_cast<float>(i) * sampleRate / (2.0f * (binCount - 1));
 
-			// Only process bins within our frequency range of interest
 			if (freq < MIN_FREQ || freq > MAX_FREQ || !std::isfinite(freq)) {
 				continue;
 			}
@@ -384,14 +384,11 @@ ColourMapper::ColourResult ColourMapper::frequenciesToColour(
 				continue;
 			}
 
-			// Use raw magnitudes without perceptual weighting
 			float perceptualWeight = weight;
 
-			// Store frequency and its weighted magnitude
 			envelopeFrequencies.push_back(freq);
 			envelopeWeights.push_back(perceptualWeight);
 
-			// Update statistics
 			totalEnvelopeWeight += perceptualWeight;
 
 			if (perceptualWeight > maxEnvelopeWeight) {
@@ -401,15 +398,10 @@ ColourMapper::ColourResult ColourMapper::frequenciesToColour(
 		}
 
 		if (!envelopeFrequencies.empty() && totalEnvelopeWeight > 0.0f) {
-			// Calculate spectral characteristics using our new helper function
-			SpectralCharacteristics spectralStats =
-				calculateSpectralCharacteristics(spectralEnvelope, sampleRate);
-
 			float spectralCentroid = spectralStats.centroid;
 			float spectralFlatness = spectralStats.flatness;
 			float normalisedSpread = spectralStats.normalisedSpread;
 
-			// Normalise weights
 			for (float& envelopeWeight : envelopeWeights) {
 				envelopeWeight /= totalEnvelopeWeight;
 			}
@@ -424,14 +416,11 @@ ColourMapper::ColourResult ColourMapper::frequenciesToColour(
 				if (weight <= 0.0f)
 					continue;
 
-				// Convert frequency to wavelength
 				float wavelength = logFrequencyToWavelength(envelopeFrequencies[i]);
 
-				// Get colour in RGB
 				float r, g, b;
 				wavelengthToRGBCIE(wavelength, r, g, b);
 
-				// Convert to Lab for perceptual blending
 				float L, a, b_comp;
 				RGBtoLab(r, g, b, L, a, b_comp);
 
@@ -452,7 +441,6 @@ ColourMapper::ColourResult ColourMapper::frequenciesToColour(
 				float contrastBoost = 1.0f + normalisedSpread * 0.5f;
 				float brightnessAdjust = centroidFactor * contrastBoost;
 
-				// Apply brightness adjustment
 				L = std::lerp(L, std::min(L * 1.2f, 100.0f), brightnessAdjust);
 
 				// Weighted contribution to final colour
@@ -461,7 +449,6 @@ ColourMapper::ColourResult ColourMapper::frequenciesToColour(
 				b_envelope += b_comp * weight;
 			}
 
-			// Convert blended Lab back to RGB
 			LabtoRGB(L_envelope, a_envelope, b_envelope, envelopeResult.r, envelopeResult.g,
 					 envelopeResult.b);
 
@@ -475,19 +462,13 @@ ColourMapper::ColourResult ColourMapper::frequenciesToColour(
 		}
 	}
 
-	// Blend results based on spectral characteristics
 	if (hasPeakColour && hasEnvelopeColour) {
 		float blendFactor = 0.5f;
 
 		if (hasEnvelope) {
-			// Calculate spectral characteristics for blending factor using our helper function
-			SpectralCharacteristics spectralStats =
-				calculateSpectralCharacteristics(spectralEnvelope, sampleRate);
-
 			float spectralFlatness = spectralStats.flatness;
 			float spectralSpread = spectralStats.normalisedSpread;
 
-			// Determine blending based on spectral characteristics
 			float tonalFactor = 1.0f - spectralFlatness;
 			float spreadFactor = spectralSpread;
 
@@ -495,15 +476,12 @@ ColourMapper::ColourResult ColourMapper::frequenciesToColour(
 			blendFactor = std::clamp(blendFactor, 0.1f, 0.9f);
 		}
 
-		// Blend in Lab space
 		result.L = std::lerp(peakResult.L, envelopeResult.L, blendFactor);
 		result.a = std::lerp(peakResult.a, envelopeResult.a, blendFactor);
 		result.b_comp = std::lerp(peakResult.b_comp, envelopeResult.b_comp, blendFactor);
 
-		// Convert back to RGB
 		LabtoRGB(result.L, result.a, result.b_comp, result.r, result.g, result.b);
 
-		// Choose dominant frequency based on which method likely provides better data
 		if (blendFactor < 0.5f) {
 			result.dominantFrequency = peakResult.dominantFrequency;
 			result.dominantWavelength = peakResult.dominantWavelength;
@@ -519,10 +497,8 @@ ColourMapper::ColourResult ColourMapper::frequenciesToColour(
 
 	gamma = std::clamp(gamma, 0.1f, 5.0f);
 
-	// Calculate colour intensity from linear RGB values before gamma correction
 	result.colourIntensity = 0.2126f * result.r + 0.7152f * result.g + 0.0722f * result.b;
 
-	// Apply gamma correction to final output
 	result.r = std::pow(std::clamp(result.r, 0.0f, 1.0f), gamma);
 	result.g = std::pow(std::clamp(result.g, 0.0f, 1.0f), gamma);
 	result.b = std::pow(std::clamp(result.b, 0.0f, 1.0f), gamma);

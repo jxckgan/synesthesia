@@ -28,6 +28,7 @@
 struct UpdateChecker::Impl {
     std::atomic<bool> requestInProgress{false};
     std::atomic<bool> updateCheckComplete{false};
+    std::atomic<bool> shutdownRequested{false};
     std::mutex dataMutex;
     
     std::string latestVersionFound;
@@ -36,13 +37,17 @@ struct UpdateChecker::Impl {
 };
 
 UpdateChecker::UpdateChecker() : pImpl(std::make_unique<Impl>()) {}
-UpdateChecker::~UpdateChecker() {}
+UpdateChecker::~UpdateChecker() {
+    if (pImpl) {
+        pImpl->shutdownRequested = true;
+    }
+}
 
 bool UpdateChecker::isSupportedPlatform() const {
 #ifdef _WIN32
     return true;
 #elif __APPLE__
-    #ifdef __aarch64__
+    #if defined(__arm64__) || defined(__aarch64__)
     return true;
     #else
     return false;
@@ -117,9 +122,16 @@ void UpdateChecker::checkForUpdates(const std::string& repoOwner, const std::str
     std::string apiUrl = "https://api.github.com/repos/" + repoOwner + "/" + repoName + "/releases/latest";
     
     // Perform HTTP request in a separate thread
-    std::thread([this, apiUrl]() {
-        performHttpRequest(apiUrl, [this](const std::string& response) {
-            std::lock_guard<std::mutex> lock(pImpl->dataMutex);
+    auto implPtr = pImpl.get();
+    std::thread([implPtr, apiUrl, this]() {
+        if (implPtr->shutdownRequested) return;
+        
+        performHttpRequest(apiUrl, [implPtr](const std::string& response) {
+            if (implPtr->shutdownRequested) return;
+            
+            std::lock_guard<std::mutex> lock(implPtr->dataMutex);
+            
+            if (implPtr->shutdownRequested) return;
             
             try {
                 auto json = nlohmann::json::parse(response);
@@ -128,17 +140,17 @@ void UpdateChecker::checkForUpdates(const std::string& repoOwner, const std::str
                     std::string latestVersion = json["tag_name"];
                     std::string htmlUrl = json["html_url"];
                     
-                    pImpl->latestVersionFound = latestVersion;
-                    pImpl->downloadUrlFound = htmlUrl;
-                    pImpl->updateFoundFlag = true;
+                    implPtr->latestVersionFound = latestVersion;
+                    implPtr->downloadUrlFound = htmlUrl;
+                    implPtr->updateFoundFlag = true;
                 }
             } catch (const std::exception& e) {
                 // JSON parsing failed - ignore silently
-                pImpl->updateFoundFlag = false;
+                implPtr->updateFoundFlag = false;
             }
             
-            pImpl->updateCheckComplete = true;
-            pImpl->requestInProgress = false;
+            implPtr->updateCheckComplete = true;
+            implPtr->requestInProgress = false;
         });
     }).detach();
 }
@@ -226,7 +238,7 @@ void UpdateChecker::performHttpRequest(const std::string& url, std::function<voi
         
         do {
             if (WinHttpQueryDataAvailable(hRequest, &bytesAvailable) && bytesAvailable > 0) {
-                std::vector<char> buffer(bytesAvailable + 1);
+                std::vector<char> buffer(bytesAvailable, 0);
                 DWORD bytesRead = 0;
                 
                 if (WinHttpReadData(hRequest, buffer.data(), bytesAvailable, &bytesRead)) {
@@ -347,6 +359,9 @@ void UpdateChecker::openDownloadUrl(const std::string& url) {
     ShellExecuteA(NULL, "open", url.c_str(), NULL, NULL, SW_SHOWNORMAL);
 #elif __APPLE__
     std::string command = "open \"" + url + "\"";
-    system(command.c_str());
+    int result = system(command.c_str());
+    if (result != 0) {
+        // Log error or handle failure silently
+    }
 #endif
 }
