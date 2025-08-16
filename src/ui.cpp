@@ -28,11 +28,6 @@ void updateUI(AudioInput& audioInput, const std::vector<AudioInput::DeviceInfo>&
 	initialiseApp(state);
 	state.updateChecker.update(state.updateState);
 
-	if (state.deviceState.selectedDeviceIndex >= 0) {
-        state.updateState.updatePromptVisible = false;
-        state.updateState.shouldShowBanner = false;
-    }
-
 	if (ImGui::IsKeyPressed(ImGuiKey_H)) {
 		state.showUI = !state.showUI;
 	}
