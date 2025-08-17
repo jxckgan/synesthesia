@@ -4,6 +4,10 @@
 #include <vector>
 #include <cmath>
 
+#ifdef USE_NEON_OPTIMIZATIONS
+#include "colour_mapper_neon.h"
+#endif
+
 class ColourMapper {
 public:
 	struct ColourResult {
@@ -32,7 +36,6 @@ public:
 	static constexpr float SPEED_OF_SOUND = 343.0f;
 	static constexpr size_t CIE_TABLE_SIZE = 90;
 	
-	// Colour mapping constants
 	static constexpr float SUB_AUDIO_BRIGHTNESS_BOOST = 3.0f;
 	static constexpr float MAX_GAIN = 4.0f;
 	static constexpr float SPREAD_NORMALISATION = 5000.0f;
@@ -51,7 +54,6 @@ public:
 		const std::vector<float>& spectrum, float sampleRate);
 
 private:
-	// Validation helpers
 	static bool isValidFrequencyMagnitudePair(float frequency, float magnitude) {
 		return std::isfinite(frequency) && std::isfinite(magnitude) && 
 		       frequency > 0.0f && magnitude >= 0.0f;

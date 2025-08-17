@@ -7,6 +7,7 @@
 #include "imgui.h"
 #include "imgui_impl_win32.h"
 #include "imgui_impl_dx12.h"
+#include "implot.h"
 #include <d3d12.h>
 #include <dxgi1_4.h>
 #include <tchar.h>
@@ -35,7 +36,6 @@ struct FrameContext
     UINT64                      FenceValue;
 };
 
-// Simple free list based allocator
 struct ExampleDescriptorHeapAllocator
 {
     ID3D12DescriptorHeap*       Heap = nullptr;
@@ -80,7 +80,6 @@ struct ExampleDescriptorHeapAllocator
     }
 };
 
-// Data
 static FrameContext                 g_frameContext[APP_NUM_FRAMES_IN_FLIGHT] = {};
 static UINT                         g_frameIndex = 0;
 
@@ -99,7 +98,6 @@ static HANDLE                       g_hSwapChainWaitableObject = nullptr;
 static ID3D12Resource*              g_mainRenderTargetResource[APP_NUM_BACK_BUFFERS] = {};
 static D3D12_CPU_DESCRIPTOR_HANDLE  g_mainRenderTargetDescriptor[APP_NUM_BACK_BUFFERS] = {};
 
-// Forward declarations of helper functions
 bool CreateDeviceD3D(HWND hWnd);
 void CleanupDeviceD3D();
 void CreateRenderTarget();
@@ -108,7 +106,6 @@ void WaitForLastSubmittedFrame();
 FrameContext* WaitForNextFrameResources();
 LRESULT WINAPI WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
 
-// Main code
 int main(int, char**)
 {
     WNDCLASSEXW wc = { 
@@ -156,6 +153,7 @@ int main(int, char**)
 
     IMGUI_CHECKVERSION();
     ImGui::CreateContext();
+    ImPlot::CreateContext();
     ImGuiIO& io = ImGui::GetIO(); (void)io;
     io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
     io.ConfigFlags |= ImGuiConfigFlags_NavEnableGamepad;
@@ -250,6 +248,7 @@ int main(int, char**)
 
     ImGui_ImplDX12_Shutdown();
     ImGui_ImplWin32_Shutdown();
+    ImPlot::DestroyContext();
     ImGui::DestroyContext();
 
     CleanupDeviceD3D();

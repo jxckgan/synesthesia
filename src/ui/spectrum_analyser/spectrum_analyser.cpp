@@ -24,19 +24,50 @@ void SpectrumAnalyser::drawSpectrumWindow(
                  ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoScrollbar |
                  ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoBackground);
 
-    ImVec2 canvasPos = ImGui::GetCursorScreenPos();
-    ImVec2 canvasSize = ImGui::GetContentRegionAvail();
-    ImDrawList* drawList = ImGui::GetWindowDrawList();
-
-    drawBackground(drawList, canvasPos, canvasSize);
-
-    std::vector<ImVec2> points(LINE_COUNT);
+    std::vector<float> xData(LINE_COUNT);
+    std::vector<float> yData(LINE_COUNT);
     float sampleRate = getSampleRate(devices, selectedDeviceIndex);
     
-    SpectrumRenderContext context{smoothedMagnitudes, sampleRate, canvasPos, canvasSize};
-    calculateSpectrumPoints(points, context);
-    smoothPoints(points);
-    drawSpectrum(drawList, points, canvasPos, canvasSize);
+    prepareSpectrumData(xData, yData, smoothedMagnitudes, sampleRate);
+    smoothData(yData);
+
+    ImPlot::PushStyleVar(ImPlotStyleVar_PlotPadding, ImVec2(0, 0));
+    ImPlot::PushStyleVar(ImPlotStyleVar_FitPadding, ImVec2(0, 0));
+    ImPlot::PushStyleColor(ImPlotCol_PlotBg, ImVec4(0.0f, 0.0f, 0.0f, 0.0f));
+    ImPlot::PushStyleColor(ImPlotCol_FrameBg, ImVec4(0.0f, 0.0f, 0.0f, 0.0f));
+    ImPlot::PushStyleColor(ImPlotCol_PlotBorder, ImVec4(0.0f, 0.0f, 0.0f, 0.0f));
+    ImPlot::PushStyleColor(ImPlotCol_AxisGrid, ImVec4(0.0f, 0.0f, 0.0f, 0.0f));
+    ImPlot::PushStyleColor(ImPlotCol_AxisBgHovered, ImVec4(0.0f, 0.0f, 0.0f, 0.0f));
+    ImPlot::PushStyleColor(ImPlotCol_AxisBg, ImVec4(0.0f, 0.0f, 0.0f, 0.0f));
+
+    if (ImPlot::BeginPlot("##Spectrum", ImVec2(-1, -1), 
+                          ImPlotFlags_NoTitle | ImPlotFlags_NoLegend | 
+                          ImPlotFlags_NoMenus | ImPlotFlags_NoBoxSelect |
+                          ImPlotFlags_NoMouseText | ImPlotFlags_NoFrame)) {
+        
+        ImPlot::SetupAxis(ImAxis_X1, nullptr, 
+                         ImPlotAxisFlags_NoTickLabels | ImPlotAxisFlags_NoTickMarks | 
+                         ImPlotAxisFlags_NoGridLines | ImPlotAxisFlags_NoHighlight);
+        ImPlot::SetupAxis(ImAxis_Y1, nullptr, 
+                         ImPlotAxisFlags_NoTickLabels | ImPlotAxisFlags_NoTickMarks | 
+                         ImPlotAxisFlags_NoGridLines | ImPlotAxisFlags_NoHighlight);
+        ImPlot::SetupAxisLimits(ImAxis_X1, FFTProcessor::MIN_FREQ, FFTProcessor::MAX_FREQ);
+        ImPlot::SetupAxisScale(ImAxis_X1, ImPlotScale_Log10);
+        
+        float plotYMax = 2.0f;
+        ImPlot::SetupAxisLimits(ImAxis_Y1, 0, plotYMax);
+        
+        ImPlot::SetNextFillStyle(ImVec4(1.0f, 1.0f, 1.0f, 0.1f));
+        ImPlot::PlotShaded("##Fill", xData.data(), yData.data(), LINE_COUNT, 0.0);
+        
+        ImPlot::SetNextLineStyle(ImVec4(1.0f, 1.0f, 1.0f, 0.9f), 1.5f);
+        ImPlot::PlotLine("##Line", xData.data(), yData.data(), LINE_COUNT);
+        
+        ImPlot::EndPlot();
+    }
+
+    ImPlot::PopStyleColor(6);
+    ImPlot::PopStyleVar(2);
 
     ImGui::End();
     ImGui::PopStyleColor();
@@ -53,96 +84,66 @@ float SpectrumAnalyser::getSampleRate(const std::vector<AudioInput::DeviceInfo>&
     return sampleRate;
 }
 
-void SpectrumAnalyser::drawBackground(ImDrawList* drawList, const ImVec2& canvasPos, const ImVec2& canvasSize) {
-    drawList->AddRectFilledMultiColor(
-        ImVec2(canvasPos.x, canvasPos.y),
-        ImVec2(canvasPos.x + canvasSize.x, canvasPos.y + canvasSize.y),
-        ImGui::ColorConvertFloat4ToU32(ImVec4(0.0f, 0.0f, 0.0f, 0.0f)),
-        ImGui::ColorConvertFloat4ToU32(ImVec4(0.0f, 0.0f, 0.0f, 0.0f)),
-        ImGui::ColorConvertFloat4ToU32(ImVec4(0.0f, 0.0f, 0.0f, 0.4f)),
-        ImGui::ColorConvertFloat4ToU32(ImVec4(0.0f, 0.0f, 0.0f, 0.4f)));
-}
-
-void SpectrumAnalyser::calculateSpectrumPoints(std::vector<ImVec2>& points, 
-                                               const SpectrumRenderContext& context) {
-    float maxMagnitude = 0.0f;
-    if (!context.magnitudes.empty()) {
-        maxMagnitude = *std::ranges::max_element(context.magnitudes);
-    }
-    float yMax = maxMagnitude > 0.0001f ? maxMagnitude * 1.1f : 0.1f;
-
-    const float binSize = context.sampleRate / FFTProcessor::FFT_SIZE;
+void SpectrumAnalyser::prepareSpectrumData(std::vector<float>& xData, std::vector<float>& yData,
+                                           const std::vector<float>& magnitudes, float sampleRate) {
+    const float binSize = sampleRate / FFTProcessor::FFT_SIZE;
     constexpr float minFreq = FFTProcessor::MIN_FREQ;
     constexpr float maxFreq = FFTProcessor::MAX_FREQ;
     const float logMinFreq = std::log10(minFreq);
     const float logMaxFreq = std::log10(maxFreq);
+    const float logFreqRange = logMaxFreq - logMinFreq;
 
-    if (const float logFreqRange = logMaxFreq - logMinFreq;
-        !context.magnitudes.empty() && binSize > 0.0f && logFreqRange > 0.0f) {
-        
+    if (!magnitudes.empty() && binSize > 0.0f && logFreqRange > 0.0f) {
         for (int i = 0; i < LINE_COUNT; ++i) {
             float logPosition = static_cast<float>(i) / (LINE_COUNT - 1);
             float currentLogFreq = logMinFreq + logPosition * logFreqRange;
             float freq = std::pow(10.0f, currentLogFreq);
+            
+            xData[i] = freq;
 
             float binIndex = freq / binSize;
-
-            if (context.magnitudes.empty()) {
-                continue;
-            }
-            
             int binIndexFloor = static_cast<int>(binIndex);
             float t = binIndex - binIndexFloor;
 
             int idx0 = std::min(std::max(binIndexFloor, 0),
-                               static_cast<int>(context.magnitudes.size()) - 1);
-            int idx1 = std::min(idx0 + 1, static_cast<int>(context.magnitudes.size()) - 1);
+                               static_cast<int>(magnitudes.size()) - 1);
+            int idx1 = std::min(idx0 + 1, static_cast<int>(magnitudes.size()) - 1);
 
-            float magnitude = context.magnitudes[idx0] * (1.0f - t) +
-                             context.magnitudes[idx1] * t;
-
-            float xPos = context.canvasPos.x + static_cast<float>(i) / (LINE_COUNT - 1) * context.canvasSize.x;
-
-            float height = magnitude / yMax * context.canvasSize.y * 0.7f;
-            height = std::min(height, context.canvasSize.y * 0.75f);
-            float yPos = context.canvasPos.y + context.canvasSize.y - height;
-
-            points[i] = ImVec2(xPos, yPos);
+            float magnitude = magnitudes[idx0] * (1.0f - t) + magnitudes[idx1] * t;
+            
+            float normalizedMagnitude = magnitude;
+            
+            if (normalizedMagnitude > 0.001f) {
+                normalizedMagnitude = std::log10(1.0f + normalizedMagnitude * 9.0f);
+            }
+            
+            yData[i] = std::clamp(normalizedMagnitude, 0.0f, 1.0f);
+        }
+    } else {
+        for (int i = 0; i < LINE_COUNT; ++i) {
+            float logPosition = static_cast<float>(i) / (LINE_COUNT - 1);
+            float currentLogFreq = logMinFreq + logPosition * logFreqRange;
+            xData[i] = std::pow(10.0f, currentLogFreq);
+            yData[i] = 0.0f;
         }
     }
 }
 
-void SpectrumAnalyser::smoothPoints(std::vector<ImVec2>& points) {
-    std::vector<float> smoothedYPositions(LINE_COUNT);
+void SpectrumAnalyser::smoothData(std::vector<float>& yData) {
+    std::vector<float> smoothedData(LINE_COUNT);
     for (int i = 0; i < LINE_COUNT; ++i) {
         constexpr int smoothingWindow = SMOOTHING_WINDOW_SIZE;
         float sum = 0.0f;
         int count = 0;
         int halfWindow = smoothingWindow / 2;
+        
         for (int j = std::max(0, i - halfWindow);
              j <= std::min(LINE_COUNT - 1, i + halfWindow); ++j) {
-            sum += points[j].y;
+            sum += yData[j];
             count++;
         }
-        smoothedYPositions[i] = count > 0 ? sum / count : points[i].y;
+        smoothedData[i] = count > 0 ? sum / count : yData[i];
     }
-
-    for (int i = 0; i < LINE_COUNT; ++i) {
-        points[i].y = smoothedYPositions[i];
-    }
-}
-
-void SpectrumAnalyser::drawSpectrum(ImDrawList* drawList, const std::vector<ImVec2>& points, const ImVec2& canvasPos, const ImVec2& canvasSize) {
-    ImU32 fillColor = ImGui::ColorConvertFloat4ToU32(ImVec4(1.0f, 1.0f, 1.0f, 0.1f));
-    ImU32 lineColor = ImGui::ColorConvertFloat4ToU32(ImVec4(1.0f, 1.0f, 1.0f, 0.9f));
-    constexpr float lineThickness = SPECTRUM_LINE_THICKNESS;
-
-    for (int i = 0; i < LINE_COUNT - 1; ++i) {
-        ImVec2 quad[4] = {points[i], points[i + 1],
-                         ImVec2(points[i + 1].x, canvasPos.y + canvasSize.y),
-                         ImVec2(points[i].x, canvasPos.y + canvasSize.y)};
-        drawList->AddConvexPolyFilled(quad, 4, fillColor);
-    }
-
-    drawList->AddPolyline(points.data(), LINE_COUNT, lineColor, false, lineThickness);
+    
+    yData = std::move(smoothedData);
 }

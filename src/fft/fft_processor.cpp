@@ -54,8 +54,22 @@ void FFTProcessor::setEQGains(const float low, const float mid, const float high
 void FFTProcessor::applyWindow(const std::span<const float> buffer) {
 	const size_t copySize = std::min(buffer.size(), static_cast<size_t>(FFT_SIZE));
 	std::ranges::fill(fft_in, 0.0f);
-	for (size_t i = 0; i < copySize; ++i) {
-		fft_in[i] = buffer[i] * hannWindow[i];
+	
+#ifdef USE_NEON_OPTIMIZATIONS
+	if (FFTProcessorNEON::isNEONAvailable() && copySize >= 4) {
+		// Use NEON-optimized windowing
+		FFTProcessorNEON::applyHannWindow(
+			std::span<float>(fft_in.data(), copySize),
+			std::span<const float>(buffer.data(), copySize),
+			std::span<const float>(hannWindow.data(), copySize)
+		);
+	} else
+#endif
+	{
+		// Fallback to scalar implementation
+		for (size_t i = 0; i < copySize; ++i) {
+			fft_in[i] = buffer[i] * hannWindow[i];
+		}
 	}
 }
 
@@ -177,15 +191,51 @@ void FFTProcessor::calculateMagnitudes(std::vector<float>& rawMagnitudes, const 
 	maxMagnitude = 0.0f;
 	totalEnergy = 0.0f;
 
-	for (size_t i = 1; i < fft_out.size() - 1; ++i) {
-		if (const float freq = static_cast<float>(i) * sampleRate / FFT_SIZE;
-			freq < MIN_FREQ || freq > MAX_FREQ)
-			continue;
+#ifdef USE_NEON_OPTIMIZATIONS
+	if (FFTProcessorNEON::isNEONAvailable() && fft_out.size() >= 8) {
+		// Create separate arrays for real and imaginary parts for NEON processing
+		std::vector<float> real_parts(fft_out.size());
+		std::vector<float> imag_parts(fft_out.size());
+		std::vector<float> frequencies(fft_out.size());
+		
+		// Extract real/imaginary parts and calculate frequencies
+		for (size_t i = 0; i < fft_out.size(); ++i) {
+			real_parts[i] = fft_out[i].r;
+			imag_parts[i] = fft_out[i].i;
+			frequencies[i] = static_cast<float>(i) * sampleRate / FFT_SIZE;
+		}
+		
+		// Use NEON-optimized magnitude calculation
+		FFTProcessorNEON::calculateMagnitudes(
+			std::span<float>(rawMagnitudes.data(), rawMagnitudes.size()),
+			std::span<const float>(real_parts.data(), real_parts.size()),
+			std::span<const float>(imag_parts.data(), imag_parts.size())
+		);
+		
+		// Calculate max magnitude and total energy for valid frequency range
+		for (size_t i = 1; i < fft_out.size() - 1; ++i) {
+			if (frequencies[i] < MIN_FREQ || frequencies[i] > MAX_FREQ) {
+				rawMagnitudes[i] = 0.0f;
+				continue;
+			}
+			
+			totalEnergy += rawMagnitudes[i] * rawMagnitudes[i];
+			maxMagnitude = std::max(maxMagnitude, rawMagnitudes[i]);
+		}
+	} else
+#endif
+	{
+		// Fallback to scalar implementation
+		for (size_t i = 1; i < fft_out.size() - 1; ++i) {
+			if (const float freq = static_cast<float>(i) * sampleRate / FFT_SIZE;
+				freq < MIN_FREQ || freq > MAX_FREQ)
+				continue;
 
-		float magnitude = std::hypot(fft_out[i].r, fft_out[i].i);
-		rawMagnitudes[i] = magnitude;
-		totalEnergy += magnitude * magnitude;
-		maxMagnitude = std::max(maxMagnitude, magnitude);
+			float magnitude = std::hypot(fft_out[i].r, fft_out[i].i);
+			rawMagnitudes[i] = magnitude;
+			totalEnergy += magnitude * magnitude;
+			maxMagnitude = std::max(maxMagnitude, magnitude);
+		}
 	}
 }
 
@@ -265,10 +315,6 @@ void FFTProcessor::findFrequencyPeaks(const float sampleRate) {
 	float totalEnergy = 0.0f;
 
 	calculateMagnitudes(rawMagnitudes, sampleRate, maxMagnitude, totalEnergy);
-
-	// Calculate RMS value and convert to logarithmic scale
-
-	// Normalise dbFS to a 0-1 range (-60 dB to 0 dB)
 
 	{
 		const float rmsValue = std::sqrt(totalEnergy / static_cast<float>(binCount));

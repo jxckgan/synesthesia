@@ -78,7 +78,6 @@ void ColourMapper::RGBtoXYZ(float r, float g, float b, float& X, float& Y, float
 	Z = 0.0193f * r_linear + 0.1192f * g_linear + 0.9505f * b_linear;
 }
 
-// Convert XYZ to Lab colour space
 void ColourMapper::XYZtoLab(const float X, const float Y, const float Z, float& L, float& a,
 							float& b) {
 	const float xr = REF_X > 0.0f ? X / REF_X : 0.0f;
@@ -104,7 +103,6 @@ void ColourMapper::XYZtoLab(const float X, const float Y, const float Z, float& 
 	b = std::clamp(b, -128.0f, 127.0f);
 }
 
-// Convert Lab to XYZ colour space
 void ColourMapper::LabtoXYZ(float L, float a, float b, float& X, float& Y, float& Z) {
 	L = std::clamp(L, 0.0f, 100.0f);
 	a = std::clamp(a, -128.0f, 127.0f);
@@ -129,7 +127,6 @@ void ColourMapper::LabtoXYZ(float L, float a, float b, float& X, float& Y, float
 	Z = std::max(0.0f, Z);
 }
 
-// Convert RGB to Lab colour space
 void ColourMapper::RGBtoLab(const float r, const float g, const float b, float& L, float& a,
 							float& b_comp) {
 	float X, Y, Z;
@@ -137,7 +134,6 @@ void ColourMapper::RGBtoLab(const float r, const float g, const float b, float& 
 	XYZtoLab(X, Y, Z, L, a, b_comp);
 }
 
-// Convert Lab to RGB colour space
 void ColourMapper::LabtoRGB(const float L, const float a, const float b_comp, float& r, float& g,
 							float& b) {
 	float X, Y, Z;
@@ -155,7 +151,6 @@ void ColourMapper::wavelengthToRGBCIE(float wavelength, float& r, float& g, floa
 	XYZtoRGB(X, Y, Z, r, g, b);
 }
 
-// Logarithmic frequency to wavelength mapping
 float ColourMapper::logFrequencyToWavelength(const float freq) {
 	if (!std::isfinite(freq) || freq <= 0.0f)
 		return MAX_WAVELENGTH;  // Return deep red for invalid frequencies
@@ -186,7 +181,6 @@ float ColourMapper::logFrequencyToWavelength(const float freq) {
 	return AUDIBLE_MAX_WAVELENGTH - t * (AUDIBLE_MAX_WAVELENGTH - AUDIBLE_MIN_WAVELENGTH);
 }
 
-// Calculate spectral characteristics
 ColourMapper::SpectralCharacteristics ColourMapper::calculateSpectralCharacteristics(
 	const std::vector<float>& spectrum, const float sampleRate) {
 	SpectralCharacteristics result{0.5f, 0.0f, 0.0f};
@@ -319,22 +313,84 @@ ColourMapper::ColourResult ColourMapper::frequenciesToColour(
 				float b_blend = 0.0f;
 				float dominantWavelength = logFrequencyToWavelength(maxFrequency);
 
+				// Prepare vectors for batch processing
+				std::vector<float> validFrequencies;
+				std::vector<float> normalizedWeights;
+				std::vector<float> wavelengths;
+				std::vector<float> r_values, g_values, b_values;
+				std::vector<float> L_values, a_values, b_comp_values;
+				
+				validFrequencies.reserve(count);
+				normalizedWeights.reserve(count);
+				
 				for (size_t i = 0; i < count; ++i) {
-					if (weights[i] <= 0.0f)
-						continue;
+					if (weights[i] <= 0.0f) continue;
+					
+					validFrequencies.push_back(frequencies[i]);
+					normalizedWeights.push_back(weights[i] / totalWeight);
+				}
+				
+				size_t validCount = validFrequencies.size();
+				if (validCount > 0) {
+					wavelengths.resize(validCount);
+					r_values.resize(validCount);
+					g_values.resize(validCount);
+					b_values.resize(validCount);
+					L_values.resize(validCount);
+					a_values.resize(validCount);
+					b_comp_values.resize(validCount);
+				}
+				
+				if (validCount > 0) {
+#ifdef USE_NEON_OPTIMIZATIONS
+					if (ColourMapperNEON::isNEONAvailable() && validCount >= 4) {
+						// Use NEON-optimized frequency to wavelength conversion
+						ColourMapperNEON::frequenciesToWavelengths(
+							std::span<float>(wavelengths.data(), validCount),
+							std::span<const float>(validFrequencies.data(), validCount),
+							validCount
+						);
+						
+						// Convert wavelengths to RGB in batches (simplified for this example)
+						for (size_t i = 0; i < validCount; ++i) {
+							wavelengthToRGBCIE(wavelengths[i], r_values[i], g_values[i], b_values[i]);
+						}
+						
+						// Use NEON-optimized RGB to Lab conversion
+						ColourMapperNEON::rgbToLab(
+							std::span<const float>(r_values.data(), validCount),
+							std::span<const float>(g_values.data(), validCount),
+							std::span<const float>(b_values.data(), validCount),
+							std::span<float>(L_values.data(), validCount),
+							std::span<float>(a_values.data(), validCount),
+							std::span<float>(b_comp_values.data(), validCount),
+							validCount
+						);
+						
+						// Weighted blending
+						for (size_t i = 0; i < validCount; ++i) {
+							L_blend += L_values[i] * normalizedWeights[i];
+							a_blend += a_values[i] * normalizedWeights[i];
+							b_blend += b_comp_values[i] * normalizedWeights[i];
+						}
+					} else
+#endif
+					{
+						// Fallback to scalar implementation
+						for (size_t i = 0; i < validCount; ++i) {
+							float wavelength = logFrequencyToWavelength(validFrequencies[i]);
 
-					float weight = weights[i] / totalWeight;
-					float wavelength = logFrequencyToWavelength(frequencies[i]);
+							float r, g, b;
+							wavelengthToRGBCIE(wavelength, r, g, b);
 
-					float r, g, b;
-					wavelengthToRGBCIE(wavelength, r, g, b);
+							float L, a, b_comp;
+							RGBtoLab(r, g, b, L, a, b_comp);
 
-					float L, a, b_comp;
-					RGBtoLab(r, g, b, L, a, b_comp);
-
-					L_blend += L * weight;
-					a_blend += a * weight;
-					b_blend += b_comp * weight;
+							L_blend += L * normalizedWeights[i];
+							a_blend += a * normalizedWeights[i];
+							b_blend += b_comp * normalizedWeights[i];
+						}
+					}
 				}
 
 				LabtoRGB(L_blend, a_blend, b_blend, peakResult.r, peakResult.g, peakResult.b);

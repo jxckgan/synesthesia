@@ -10,11 +10,10 @@ SpringSmoother::SpringSmoother(const float stiffness, const float damping, const
 }
 
 void SpringSmoother::initialiseToDefaults() {
-    m_channels[0] = {50.0f, 0.0f, 50.0f};  // L channel
-    m_channels[1] = {0.0f, 0.0f, 0.0f};    // a channel  
-    m_channels[2] = {0.0f, 0.0f, 0.0f};    // b channel
+    m_channels[0] = {50.0f, 0.0f, 50.0f};
+    m_channels[1] = {0.0f, 0.0f, 0.0f};
+    m_channels[2] = {0.0f, 0.0f, 0.0f};
 
-    // Initialise RGB cache to mid-gray
     m_currentRGB[0] = m_currentRGB[1] = m_currentRGB[2] = 0.5f;
 }
 
@@ -22,12 +21,10 @@ void SpringSmoother::reset(const float r, const float g, const float b) {
     float L, a, b_comp;
     ColourMapper::RGBtoLab(r, g, b, L, a, b_comp);
 
-    // Reset spring system to new color
     m_channels[0] = {L, 0.0f, L};
     m_channels[1] = {a, 0.0f, a};
     m_channels[2] = {b_comp, 0.0f, b_comp};
 
-    // Update RGB cache directly
     m_currentRGB[0] = r;
     m_currentRGB[1] = g;
     m_currentRGB[2] = b;
@@ -61,14 +58,12 @@ bool SpringSmoother::update(float deltaTime) {
         channel.velocity += acceleration * deltaTime;
         channel.position += channel.velocity * deltaTime;
 
-        // Apply Lab color space constraints
         if (i == 0) {
             channel.position = std::clamp(channel.position, LAB_L_MIN, LAB_L_MAX);
         } else {
             channel.position = std::clamp(channel.position, LAB_AB_MIN, LAB_AB_MAX);
         }
 
-        // Checks for significant movement
         const float positionDelta = std::abs(channel.position - prevPosition);
         const float velocityDelta = std::abs(channel.velocity - prevVelocity);
 

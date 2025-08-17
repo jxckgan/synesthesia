@@ -7,6 +7,10 @@
 
 #include "kiss_fftr.h"
 
+#ifdef USE_NEON_OPTIMIZATIONS
+#include "fft_processor_neon.h"
+#endif
+
 class FFTProcessor {
 public:
 	static constexpr int FFT_SIZE = 2048;

@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.13)
 
 set(SYNESTHESIA_VERSION_MAJOR 2025)
 set(SYNESTHESIA_VERSION_MINOR 08)
-set(SYNESTHESIA_VERSION_PATCH 16)
+set(SYNESTHESIA_VERSION_PATCH 17)
 set(SYNESTHESIA_VERSION "${SYNESTHESIA_VERSION_MAJOR}.${SYNESTHESIA_VERSION_MINOR}.${SYNESTHESIA_VERSION_PATCH}")
 
 project(Synesthesia VERSION ${SYNESTHESIA_VERSION})
@@ -11,6 +11,7 @@ set(EXECUTABLE_NAME "Synesthesia")
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(IMGUI_DIR "${CMAKE_CURRENT_SOURCE_DIR}/vendor/imgui")
+set(IMPLOT_DIR "${CMAKE_CURRENT_SOURCE_DIR}/vendor/implot")
 set(KISSFFT_DIR "${CMAKE_CURRENT_SOURCE_DIR}/vendor/kissfft")
 set(JSON_DIR "${CMAKE_CURRENT_SOURCE_DIR}/vendor/json")
 set(SRC_DIR "${CMAKE_CURRENT_SOURCE_DIR}/src")
@@ -18,6 +19,40 @@ set(GLFW_DIR "${CMAKE_CURRENT_SOURCE_DIR}/vendor/glfw")
 set(PORTAUDIO_DIR "${CMAKE_CURRENT_SOURCE_DIR}/vendor/portaudio")
 
 option(BUILD_MACOS_BUNDLE "Build as macOS .app bundle" OFF)
+option(ENABLE_NEON_OPTIMIZATIONS "Enable ARM NEON SIMD optimizations" ON)
+
+# Detect ARM64 architecture and NEON support
+set(ARM64_DETECTED FALSE)
+set(NEON_AVAILABLE FALSE)
+
+if(CMAKE_SYSTEM_PROCESSOR MATCHES "arm64|aarch64|ARM64")
+    set(ARM64_DETECTED TRUE)
+    message(STATUS "ARM64 architecture detected: ${CMAKE_SYSTEM_PROCESSOR}")
+    
+    if(ENABLE_NEON_OPTIMIZATIONS)
+        # Check for NEON support
+        include(CheckCXXCompilerFlag)
+        check_cxx_compiler_flag("-march=armv8-a" COMPILER_SUPPORTS_ARMV8)
+        
+        if(COMPILER_SUPPORTS_ARMV8)
+            set(NEON_AVAILABLE TRUE)
+            message(STATUS "ARM NEON optimizations enabled")
+            add_definitions(-DUSE_NEON_OPTIMIZATIONS)
+        else()
+            message(WARNING "Compiler does not support ARM NEON extensions")
+        endif()
+    else()
+        message(STATUS "ARM NEON optimizations disabled by user")
+    endif()
+elseif(APPLE AND CMAKE_OSX_ARCHITECTURES MATCHES "arm64")
+    set(ARM64_DETECTED TRUE)
+    set(NEON_AVAILABLE TRUE)
+    message(STATUS "Apple Silicon (ARM64) detected via CMAKE_OSX_ARCHITECTURES")
+    if(ENABLE_NEON_OPTIMIZATIONS)
+        message(STATUS "ARM NEON optimizations enabled for Apple Silicon")
+        add_definitions(-DUSE_NEON_OPTIMIZATIONS)
+    endif()
+endif()
 
 # Configure version header
 configure_file(
@@ -87,9 +122,20 @@ set(SOURCES
     ${IMGUI_DIR}/imgui_draw.cpp
     ${IMGUI_DIR}/imgui_tables.cpp
     ${IMGUI_DIR}/imgui_widgets.cpp
+    ${IMPLOT_DIR}/implot.cpp
+    ${IMPLOT_DIR}/implot_items.cpp
     ${KISSFFT_DIR}/kiss_fft.c
     ${KISSFFT_DIR}/kiss_fftr.c
 )
+
+# Add NEON-optimized sources for ARM64 platforms
+if(NEON_AVAILABLE AND ENABLE_NEON_OPTIMIZATIONS)
+    list(APPEND SOURCES
+        ${SRC_DIR}/fft/fft_processor_neon.cpp
+        ${SRC_DIR}/colour/colour_mapper_neon.cpp
+    )
+    message(STATUS "Added NEON-optimized source files to build")
+endif()
 
 # Platform-specific source additions
 if(WIN32)
@@ -128,6 +174,7 @@ endif()
 target_include_directories(${EXECUTABLE_NAME} PRIVATE
     ${IMGUI_DIR}
     ${IMGUI_DIR}/backends
+    ${IMPLOT_DIR}
     ${KISSFFT_DIR}
     ${SRC_DIR}
     ${SRC_DIR}/audio
@@ -169,6 +216,24 @@ elseif(APPLE)
     target_compile_options(${EXECUTABLE_NAME} PRIVATE
         "-Wall" "-Wformat" "-O3" "-ffast-math" "-march=native"
     )
+    
+    # Add NEON-specific optimizations for ARM64
+    if(NEON_AVAILABLE AND ENABLE_NEON_OPTIMIZATIONS)
+        target_compile_options(${EXECUTABLE_NAME} PRIVATE
+            "-mcpu=apple-m1"  # Optimize for Apple Silicon
+            "-mtune=apple-m1"
+        )
+        
+        # Set specific compile flags for NEON source files
+        set_source_files_properties(
+            ${SRC_DIR}/fft/fft_processor_neon.cpp
+            ${SRC_DIR}/colour/colour_mapper_neon.cpp
+            PROPERTIES COMPILE_FLAGS "-O3 -ffast-math -mcpu=apple-m1 -mtune=apple-m1"
+        )
+        
+        message(STATUS "Applied NEON-specific compiler optimizations")
+    endif()
+    
     set_source_files_properties(${SRC_DIR}/renderers/metal/main.mm PROPERTIES COMPILE_FLAGS "${OBJC_FLAGS}")
     set_source_files_properties(${IMGUI_DIR}/backends/imgui_impl_metal.mm PROPERTIES COMPILE_FLAGS "${OBJC_FLAGS}")
 endif()

@@ -73,7 +73,6 @@ bool UpdateChecker::isNewerVersion(const std::string& current, const std::string
         std::stringstream ss(version);
         std::string part;
         
-        // Remove 'v' prefix if present
         std::string cleanVersion = version;
         if (!cleanVersion.empty() && cleanVersion[0] == 'v') {
             cleanVersion = cleanVersion.substr(1);
@@ -88,7 +87,6 @@ bool UpdateChecker::isNewerVersion(const std::string& current, const std::string
             }
         }
         
-        // Ensure we have at least 3 parts
         while (parts.size() < 3) {
             parts.push_back(0);
         }
@@ -121,7 +119,6 @@ void UpdateChecker::checkForUpdates(const std::string& repoOwner, const std::str
     
     std::string apiUrl = "https://api.github.com/repos/" + repoOwner + "/" + repoName + "/releases/latest";
     
-    // Perform HTTP request in a separate thread
     auto implPtr = pImpl.get();
     std::thread([implPtr, apiUrl, this]() {
         if (implPtr->shutdownRequested) return;
@@ -145,7 +142,6 @@ void UpdateChecker::checkForUpdates(const std::string& repoOwner, const std::str
                     implPtr->updateFoundFlag = true;
                 }
             } catch (const std::exception& e) {
-                // JSON parsing failed - ignore silently
                 implPtr->updateFoundFlag = false;
             }
             
@@ -155,7 +151,6 @@ void UpdateChecker::checkForUpdates(const std::string& repoOwner, const std::str
     }).detach();
 }
 
-// Helper function to execute command and capture output
 std::string executeCommand(const char* cmd) {
     std::array<char, 128> buffer;
     std::string result;
@@ -179,7 +174,6 @@ std::string executeCommand(const char* cmd) {
 
 void UpdateChecker::performHttpRequest(const std::string& url, std::function<void(const std::string&)> callback) {
 #ifdef _WIN32
-    // Windows implementation using WinHTTP
     HINTERNET hSession = WinHttpOpen(L"UpdateChecker/1.0", 
                                      WINHTTP_ACCESS_TYPE_DEFAULT_PROXY,
                                      WINHTTP_NO_PROXY_NAME, 
@@ -190,7 +184,6 @@ void UpdateChecker::performHttpRequest(const std::string& url, std::function<voi
         return;
     }
     
-    // Parse URL
     std::wstring wUrl(url.begin(), url.end());
     URL_COMPONENTS urlComp = {0};
     urlComp.dwStructSize = sizeof(urlComp);
@@ -228,7 +221,6 @@ void UpdateChecker::performHttpRequest(const std::string& url, std::function<voi
         return;
     }
     
-    // Send request
     if (WinHttpSendRequest(hRequest, WINHTTP_NO_ADDITIONAL_HEADERS, 0, 
                           WINHTTP_NO_REQUEST_DATA, 0, 0, 0) &&
         WinHttpReceiveResponse(hRequest, NULL)) {
