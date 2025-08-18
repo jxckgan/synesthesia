@@ -8,7 +8,7 @@ Synesthesia is automatically built by GitHub Actions, you can download the appli
 
 ### Manual Building & Running
 
-Synesthesia runs on Windows (DirectX 12) and macOS (Metal). To run this project, make sure `cmake` is installed, and just clone this repository w/ submodules (we build app dependencies locally):
+Synesthesia runs on Windows (DirectX 12) and macOS (Metal). To run this project, make sure `cmake` is installed, and just clone this repository with submodules (we build app dependencies locally):
 
 > **Note**:
 > For Windows clients, you must install VS Microsoft C++ Build Tools, [here is a guide](https://github.com/bycloudai/InstallVSBuildToolsWindows?tab=readme-ov-file) for installing and setting up your PATH.
@@ -55,15 +55,6 @@ Your executable will then be placed in the Release folder (placed at the root of
 
 https://github.com/user-attachments/assets/f2d9a25c-81e7-4976-b707-c5cdb479754d
 
-### Todo
-
-- [x] ~~Cross-platform support~~
-- [x] ~~Better/granular EQ control~~
-- [x] ~~Ability for visualisation of multiple frequency bands~~
-- [ ] Vulkan port for Linux
-- [ ] Generally more control over settings
-- [ ] DAW-integration
-
 ### Credits & Footnotes
 
 - GUI built with [Dear ImGui](https://github.com/ocornut/imgui)
@@ -73,4 +64,4 @@ https://github.com/user-attachments/assets/f2d9a25c-81e7-4976-b707-c5cdb479754d
 > This application can display rapidly changing colours when multiple frequencies are played. If you have photosensitive epilepsy, I strongly advise against using this application.
 
 > **Note:**
-> This application is artistic in nature, and doesn't aim to replicate Synesthesia (Chromesthesia) or to be 100% scientifically accurate.
+> This application is artistic in nature, and doesn't aim to replicate Synesthesia (Chromesthesia) or either be 100%-scientifically accurate.

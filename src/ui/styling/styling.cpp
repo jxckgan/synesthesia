@@ -21,6 +21,7 @@ void UIStyler::setDimensions(ImGuiStyle& style) {
     style.WindowRounding = 0.0f;
     style.FrameRounding = 1.0f;
     style.ScrollbarRounding = 5.0f;
+    style.ScrollbarSize = 12.0f;
     style.GrabRounding = 1.0f;
     style.TabRounding = 1.0f;
     style.ChildRounding = 1.0f;
@@ -59,9 +60,9 @@ void UIStyler::setColors(ImGuiStyle& style) {
     colours[ImGuiCol_HeaderActive] = ImVec4(0.40f, 0.40f, 0.45f, 0.70f);
     
     colours[ImGuiCol_ScrollbarBg] = ImVec4(0.07f, 0.07f, 0.09f, 0.00f);
-    colours[ImGuiCol_ScrollbarGrab] = ImVec4(0.35f, 0.35f, 0.40f, 0.70f);
-    colours[ImGuiCol_ScrollbarGrabHovered] = ImVec4(0.45f, 0.45f, 0.50f, 0.80f);
-    colours[ImGuiCol_ScrollbarGrabActive] = ImVec4(0.55f, 0.55f, 0.60f, 0.85f);
+    colours[ImGuiCol_ScrollbarGrab] = ImVec4(0.25f, 0.25f, 0.28f, 0.40f);
+    colours[ImGuiCol_ScrollbarGrabHovered] = ImVec4(0.35f, 0.35f, 0.38f, 0.60f);
+    colours[ImGuiCol_ScrollbarGrabActive] = ImVec4(0.45f, 0.45f, 0.48f, 0.70f);
     
     colours[ImGuiCol_CheckMark] = ImVec4(0.90f, 0.90f, 0.95f, 1.00f);
     colours[ImGuiCol_Text] = ImVec4(0.95f, 0.95f, 0.95f, 1.00f);

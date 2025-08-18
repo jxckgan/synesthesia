@@ -15,12 +15,22 @@
 #include "styling.h"
 #include "spectrum_analyser.h"
 #include "device_manager.h"
+#ifdef ENABLE_API_SERVER
+#include "api/synesthesia_api_integration.h"
+#endif
 
 void initialiseApp(UIState& state) {
     if (!state.updateState.hasCheckedThisSession) {
         state.updateChecker.checkForUpdates("jxckgan", "synesthesia");
         state.updateState.hasCheckedThisSession = true;
     }
+    
+#ifdef ENABLE_API_SERVER
+    auto& api = Synesthesia::SynesthesiaAPIIntegration::getInstance();
+    if (api.isServerRunning() && !state.apiServerEnabled) {
+        api.stopServer();
+    }
+#endif
 }
 
 void updateUI(AudioInput& audioInput, const std::vector<AudioInput::DeviceInfo>& devices,
@@ -80,12 +90,34 @@ void updateUI(AudioInput& audioInput, const std::vector<AudioInput::DeviceInfo>&
 		}
 
 		if (newValid) {
-			colourSmoother.setTargetColour(colourResult.r, colourResult.g, colourResult.b);
-			colourSmoother.update(deltaTime * UIConstants::COLOUR_SMOOTH_UPDATE_FACTOR);
-			colourSmoother.getCurrentColour(clear_color[0], clear_color[1], clear_color[2]);
+			if (state.smoothingEnabled) {
+				colourSmoother.setTargetColour(colourResult.r, colourResult.g, colourResult.b);
+				colourSmoother.update(deltaTime * UIConstants::COLOUR_SMOOTH_UPDATE_FACTOR);
+				colourSmoother.getCurrentColour(clear_color[0], clear_color[1], clear_color[2]);
+			} else {
+				clear_color[0] = colourResult.r;
+				clear_color[1] = colourResult.g;
+				clear_color[2] = colourResult.b;
+			}
 		}
 
 		audioInput.getFFTProcessor().setEQGains(state.lowGain, state.midGain, state.highGain);
+		
+		auto eqPeaks = audioInput.getFrequencyPeaks();
+		std::vector<float> eqFreqs, eqMags;
+		eqFreqs.reserve(eqPeaks.size());
+		eqMags.reserve(eqPeaks.size());
+		for (const auto& peak : eqPeaks) {
+			eqFreqs.push_back(peak.frequency);
+			eqMags.push_back(peak.magnitude);
+		}
+		
+#ifdef ENABLE_API_SERVER
+		auto& api = Synesthesia::SynesthesiaAPIIntegration::getInstance();
+		api.updateFinalColour(clear_color[0], clear_color[1], clear_color[2],
+		                     eqFreqs, eqMags, static_cast<uint32_t>(UIConstants::DEFAULT_SAMPLE_RATE), 
+		                     1024);
+#endif
 
 		const auto& magnitudes = audioInput.getFFTProcessor().getMagnitudesBuffer();
 		if (state.smoothedMagnitudes.size() != magnitudes.size()) {
@@ -111,13 +143,14 @@ void updateUI(AudioInput& audioInput, const std::vector<AudioInput::DeviceInfo>&
 
 		ImVec2 displaySize = io.DisplaySize;
 
-		ImGui::SetNextWindowPos(ImVec2(displaySize.x - SIDEBAR_WIDTH, 0));
+		float sidebarX = state.sidebarOnLeft ? 0 : (displaySize.x - SIDEBAR_WIDTH);
+		ImGui::SetNextWindowPos(ImVec2(sidebarX, 0));
 		ImGui::SetNextWindowSize(ImVec2(SIDEBAR_WIDTH, displaySize.y));
 
 		ImGui::Begin(
 			"Sidebar", nullptr,
 			ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove);
-
+		
 		ImGui::SetCursorPosY(20);
 		ImGui::PushFont(ImGui::GetIO().Fonts->Fonts[0]);
 		ImGui::SetCursorPosX((SIDEBAR_WIDTH - ImGui::CalcTextSize("Synesthesia").x) * 0.5f);
@@ -131,7 +164,7 @@ void updateUI(AudioInput& audioInput, const std::vector<AudioInput::DeviceInfo>&
 
 		if (state.deviceState.selectedDeviceIndex >= 0 && !state.deviceState.streamError) {
 			constexpr float BUTTON_HEIGHT = 25.0f;
-			constexpr float CONTROL_WIDTH = 150.0f;
+			constexpr float CONTROL_WIDTH = 130.0f;
 			constexpr float LABEL_WIDTH = 90.0f;
 			
 			DeviceManager::renderChannelSelection(state.deviceState, audioInput, devices);
@@ -160,15 +193,16 @@ void updateUI(AudioInput& audioInput, const std::vector<AudioInput::DeviceInfo>&
 				BUTTON_HEIGHT,
 				contentWidth
 			);
+			
+			Controls::renderAdvancedSettingsPanel(state);
 		}
 
 		float bottomTextHeight = ImGui::GetTextLineHeightWithSpacing() + 12;
 		float currentCursorY = ImGui::GetCursorPosY();
-
 		if (float spaceToBottom = ImGui::GetWindowHeight() - currentCursorY - bottomTextHeight -
-								  style.WindowPadding.y;
-			spaceToBottom > 0.0f) {
-			ImGui::Dummy(ImVec2(0.0f, spaceToBottom));
+										  style.WindowPadding.y;
+					spaceToBottom > 0.0f) {
+					ImGui::Dummy(ImVec2(0.0f, spaceToBottom));
 		}
 
 		ImGui::Separator();
@@ -184,7 +218,8 @@ void updateUI(AudioInput& audioInput, const std::vector<AudioInput::DeviceInfo>&
 				devices,
 				state.deviceState.selectedDeviceIndex,
 				displaySize,
-				SIDEBAR_WIDTH
+				SIDEBAR_WIDTH,
+				state.sidebarOnLeft
 			);
 		}
 	}

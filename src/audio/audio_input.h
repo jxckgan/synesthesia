@@ -2,6 +2,7 @@
 
 #include <portaudio.h>
 
+#include <atomic>
 #include <string>
 #include <vector>
 
@@ -35,9 +36,9 @@ public:
 	}
 
 	int getChannelCount() const { return channelCount; }
-	int getActiveChannel() const { return activeChannel; }
+	int getActiveChannel() const { return activeChannel.load(); }
 	void setActiveChannel(const int channel) {
-		activeChannel = channel >= 0 && channel < channelCount ? channel : 0;
+		activeChannel.store(channel >= 0 && channel < channelCount ? channel : 0);
 	}
 
 private:
@@ -45,7 +46,7 @@ private:
 	AudioProcessor processor;
 	float sampleRate;
 	int channelCount;
-	int activeChannel;
+	std::atomic<int> activeChannel;
 
 	std::vector<float> previousInputs;
 	std::vector<float> previousOutputs;

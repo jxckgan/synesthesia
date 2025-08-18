@@ -39,6 +39,17 @@ struct UIState {
 
     UpdateState updateState;
     UpdateChecker updateChecker;
+    
+    // UI state
+    bool showAdvancedSettings = false;
+    bool showAPISettings = false;
+    bool sidebarOnLeft = false; // false = right side (default), true = left side
+    
+    // API state
+    bool apiServerEnabled = false;
+    
+    // Smoothing control
+    bool smoothingEnabled = true;
 };
 
 void updateUI(AudioInput &audioInput,

@@ -23,7 +23,6 @@ namespace AccurateMath {
         return vld1q_f32(results);
     }
     
-    // Accurate log implementation using scalar fallback
     inline float32x4_t accurateLog(float32x4_t x) {
         float results[4];
         float inputs[4];
@@ -36,7 +35,6 @@ namespace AccurateMath {
         return vld1q_f32(results);
     }
     
-    // Accurate log2 implementation
     inline float32x4_t accurateLog2(float32x4_t x) {
         float results[4];
         float inputs[4];
@@ -49,7 +47,6 @@ namespace AccurateMath {
         return vld1q_f32(results);
     }
     
-    // Accurate exp implementation
     inline float32x4_t accurateExp(float32x4_t x) {
         float results[4];
         float inputs[4];
@@ -89,19 +86,15 @@ void rgbToXyz(std::span<const float> r, std::span<const float> g, std::span<cons
     
     size_t i = 0;
     
-    // NEON vectorized RGB to XYZ conversion
     for (; i < vectorSize; i += 4) {
         float32x4_t rVec = vld1q_f32(&r[i]);
         float32x4_t gVec = vld1q_f32(&g[i]);
         float32x4_t bVec = vld1q_f32(&b[i]);
         
-        // Clamp RGB values
         rVec = vmaxq_f32(vminq_f32(rVec, vdupq_n_f32(1.0f)), vdupq_n_f32(0.0f));
         gVec = vmaxq_f32(vminq_f32(gVec, vdupq_n_f32(1.0f)), vdupq_n_f32(0.0f));
         bVec = vmaxq_f32(vminq_f32(bVec, vdupq_n_f32(1.0f)), vdupq_n_f32(0.0f));
         
-        // Inverse gamma correction (simplified)
-        // For performance, use approximation: if c <= 0.04045 then c/12.92 else ((c+0.055)/1.055)^2.4
         uint32x4_t r_mask = vcleq_f32(rVec, gamma_threshold);
         uint32x4_t g_mask = vcleq_f32(gVec, gamma_threshold);
         uint32x4_t b_mask = vcleq_f32(bVec, gamma_threshold);
@@ -111,7 +104,6 @@ void rgbToXyz(std::span<const float> r, std::span<const float> g, std::span<cons
         float32x4_t g_linear_low = vmulq_f32(gVec, gamma_factor);
         float32x4_t b_linear_low = vmulq_f32(bVec, gamma_factor);
         
-        // Power portion (approximated)
         float32x4_t r_plus_offset = vaddq_f32(rVec, gamma_offset);
         float32x4_t g_plus_offset = vaddq_f32(gVec, gamma_offset);
         float32x4_t b_plus_offset = vaddq_f32(bVec, gamma_offset);
@@ -129,7 +121,6 @@ void rgbToXyz(std::span<const float> r, std::span<const float> g, std::span<cons
         float32x4_t g_linear = vbslq_f32(g_mask, g_linear_low, g_linear_high);
         float32x4_t b_linear = vbslq_f32(b_mask, b_linear_low, b_linear_high);
         
-        // Convert to XYZ
         float32x4_t X_result = vmulq_f32(r_linear, r_to_x);
         X_result = vmlaq_f32(X_result, g_linear, g_to_x);
         X_result = vmlaq_f32(X_result, b_linear, b_to_x);
@@ -147,7 +138,6 @@ void rgbToXyz(std::span<const float> r, std::span<const float> g, std::span<cons
         vst1q_f32(&Z[i], Z_result);
     }
     
-    // Handle remaining elements
     for (; i < size; ++i) {
         float rVal = std::clamp(r[i], 0.0f, 1.0f);
         float gVal = std::clamp(g[i], 0.0f, 1.0f);
@@ -193,13 +183,11 @@ void xyzToRgb(std::span<const float> X, std::span<const float> Y, std::span<cons
     
     size_t i = 0;
     
-    // NEON vectorized XYZ to RGB conversion
     for (; i < vectorSize; i += 4) {
         float32x4_t XVec = vld1q_f32(&X[i]);
         float32x4_t YVec = vld1q_f32(&Y[i]);
         float32x4_t ZVec = vld1q_f32(&Z[i]);
         
-        // Convert to linear RGB
         float32x4_t r_linear = vmulq_f32(XVec, x_to_r);
         r_linear = vmlaq_f32(r_linear, YVec, y_to_r);
         r_linear = vmlaq_f32(r_linear, ZVec, z_to_r);
@@ -212,7 +200,6 @@ void xyzToRgb(std::span<const float> X, std::span<const float> Y, std::span<cons
         b_linear = vmlaq_f32(b_linear, YVec, y_to_b);
         b_linear = vmlaq_f32(b_linear, ZVec, z_to_b);
         
-        // Gamma correction
         uint32x4_t r_mask = vcleq_f32(r_linear, gamma_threshold);
         uint32x4_t g_mask = vcleq_f32(g_linear, gamma_threshold);
         uint32x4_t b_mask = vcleq_f32(b_linear, gamma_threshold);
@@ -222,7 +209,6 @@ void xyzToRgb(std::span<const float> X, std::span<const float> Y, std::span<cons
         float32x4_t g_gamma_low = vmulq_f32(g_linear, gamma_factor);
         float32x4_t b_gamma_low = vmulq_f32(b_linear, gamma_factor);
         
-        // Power portion (accurate)
         float32x4_t r_gamma_high = AccurateMath::accuratePow(r_linear, 1.0f / 2.4f);
         r_gamma_high = vmulq_f32(r_gamma_high, gamma_multiplier);
         r_gamma_high = vsubq_f32(r_gamma_high, gamma_offset);
@@ -240,7 +226,6 @@ void xyzToRgb(std::span<const float> X, std::span<const float> Y, std::span<cons
         float32x4_t g_result = vbslq_f32(g_mask, g_gamma_low, g_gamma_high);
         float32x4_t b_result = vbslq_f32(b_mask, b_gamma_low, b_gamma_high);
         
-        // Clamp to [0, 1]
         r_result = vmaxq_f32(vminq_f32(r_result, vdupq_n_f32(1.0f)), vdupq_n_f32(0.0f));
         g_result = vmaxq_f32(vminq_f32(g_result, vdupq_n_f32(1.0f)), vdupq_n_f32(0.0f));
         b_result = vmaxq_f32(vminq_f32(b_result, vdupq_n_f32(1.0f)), vdupq_n_f32(0.0f));
@@ -250,7 +235,6 @@ void xyzToRgb(std::span<const float> X, std::span<const float> Y, std::span<cons
         vst1q_f32(&b[i], b_result);
     }
     
-    // Handle remaining elements
     for (; i < size; ++i) {
         float r_linear = 3.2406f * X[i] - 1.5372f * Y[i] - 0.4986f * Z[i];
         float g_linear = -0.9689f * X[i] + 1.8758f * Y[i] + 0.0415f * Z[i];
@@ -292,44 +276,35 @@ void rgbToLab(std::span<const float> r, std::span<const float> g, std::span<cons
     
     size_t i = 0;
     
-    // NEON vectorized XYZ to Lab conversion
     for (; i < vectorSize; i += 4) {
         float32x4_t XVec = vld1q_f32(&X_temp[i]);
         float32x4_t YVec = vld1q_f32(&Y_temp[i]);
         float32x4_t ZVec = vld1q_f32(&Z_temp[i]);
         
-        // Normalize by reference white
         float32x4_t xr = vdivq_f32(XVec, ref_x);
         float32x4_t yr = vdivq_f32(YVec, ref_y);
         float32x4_t zr = vdivq_f32(ZVec, ref_z);
         
-        // Apply f(t) function (simplified for NEON)
-        // f(t) = t^(1/3) if t > epsilon, else (kappa*t + 16)/116
         uint32x4_t x_mask = vcgtq_f32(xr, epsilon);
         uint32x4_t y_mask = vcgtq_f32(yr, epsilon);
         uint32x4_t z_mask = vcgtq_f32(zr, epsilon);
         
-        // Accurate cube root for large values
         float32x4_t fx_high = AccurateMath::accuratePow(xr, 1.0f / 3.0f);
         float32x4_t fy_high = AccurateMath::accuratePow(yr, 1.0f / 3.0f);
         float32x4_t fz_high = AccurateMath::accuratePow(zr, 1.0f / 3.0f);
         
-        // Linear portion for small values
         float32x4_t fx_low = vdivq_f32(vmlaq_f32(const_16, kappa, xr), const_116);
         float32x4_t fy_low = vdivq_f32(vmlaq_f32(const_16, kappa, yr), const_116);
         float32x4_t fz_low = vdivq_f32(vmlaq_f32(const_16, kappa, zr), const_116);
         
-        // Select appropriate values
         float32x4_t fx = vbslq_f32(x_mask, fx_high, fx_low);
         float32x4_t fy = vbslq_f32(y_mask, fy_high, fy_low);
         float32x4_t fz = vbslq_f32(z_mask, fz_high, fz_low);
         
-        // Calculate Lab values
         float32x4_t L_result = vmlsq_f32(vmulq_f32(const_116, fy), const_16, vdupq_n_f32(1.0f));
         float32x4_t a_result = vmulq_f32(const_500, vsubq_f32(fx, fy));
         float32x4_t b_result = vmulq_f32(const_200, vsubq_f32(fy, fz));
         
-        // Clamp Lab values
         L_result = vmaxq_f32(vminq_f32(L_result, vdupq_n_f32(100.0f)), vdupq_n_f32(0.0f));
         a_result = vmaxq_f32(vminq_f32(a_result, vdupq_n_f32(127.0f)), vdupq_n_f32(-128.0f));
         b_result = vmaxq_f32(vminq_f32(b_result, vdupq_n_f32(127.0f)), vdupq_n_f32(-128.0f));
@@ -385,48 +360,39 @@ void labToRgb(std::span<const float> L, std::span<const float> a, std::span<cons
     
     size_t i = 0;
     
-    // NEON vectorized Lab to XYZ conversion
     for (; i < vectorSize; i += 4) {
         float32x4_t L_vec = vld1q_f32(&L[i]);
         float32x4_t a_vec = vld1q_f32(&a[i]);
         float32x4_t b_vec = vld1q_f32(&b_comp[i]);
         
-        // Clamp Lab values
         L_vec = vmaxq_f32(vminq_f32(L_vec, vdupq_n_f32(100.0f)), vdupq_n_f32(0.0f));
         a_vec = vmaxq_f32(vminq_f32(a_vec, vdupq_n_f32(127.0f)), vdupq_n_f32(-128.0f));
         b_vec = vmaxq_f32(vminq_f32(b_vec, vdupq_n_f32(127.0f)), vdupq_n_f32(-128.0f));
         
-        // Calculate f values
         float32x4_t fY = vdivq_f32(vaddq_f32(L_vec, const_16), const_116);
         float32x4_t fX = vaddq_f32(fY, vdivq_f32(a_vec, const_500));
         float32x4_t fZ = vsubq_f32(fY, vdivq_f32(b_vec, const_200));
         
-        // Apply inverse f function (simplified for NEON)
         uint32x4_t x_mask = vcgtq_f32(fX, delta);
         uint32x4_t y_mask = vcgtq_f32(fY, delta);
         uint32x4_t z_mask = vcgtq_f32(fZ, delta);
         
-        // Accurate cube for large values
         float32x4_t x_high = AccurateMath::accuratePow(fX, 3.0f);
         float32x4_t y_high = AccurateMath::accuratePow(fY, 3.0f);
         float32x4_t z_high = AccurateMath::accuratePow(fZ, 3.0f);
         
-        // Linear portion for small values
         float32x4_t x_low = vmulq_f32(delta_sq_3, vsubq_f32(fX, const_4_29));
         float32x4_t y_low = vmulq_f32(delta_sq_3, vsubq_f32(fY, const_4_29));
         float32x4_t z_low = vmulq_f32(delta_sq_3, vsubq_f32(fZ, const_4_29));
         
-        // Select appropriate values
         float32x4_t x_norm = vbslq_f32(x_mask, x_high, x_low);
         float32x4_t y_norm = vbslq_f32(y_mask, y_high, y_low);
         float32x4_t z_norm = vbslq_f32(z_mask, z_high, z_low);
         
-        // Convert to XYZ
         float32x4_t X_result = vmulq_f32(ref_x, x_norm);
         float32x4_t Y_result = vmulq_f32(ref_y, y_norm);
         float32x4_t Z_result = vmulq_f32(ref_z, z_norm);
         
-        // Ensure non-negative values
         X_result = vmaxq_f32(X_result, vdupq_n_f32(0.0f));
         Y_result = vmaxq_f32(Y_result, vdupq_n_f32(0.0f));
         Z_result = vmaxq_f32(Z_result, vdupq_n_f32(0.0f));
@@ -457,7 +423,6 @@ void labToRgb(std::span<const float> L, std::span<const float> a, std::span<cons
         Z_temp[i] = std::max(0.0f, 1.08883f * fInv(fZ));
     }
     
-    // Then convert XYZ to RGB
     xyzToRgb(X_temp, Y_temp, Z_temp, r, g, b, count);
 }
 
@@ -465,7 +430,6 @@ void frequenciesToWavelengths(std::span<float> wavelengths, std::span<const floa
     const size_t size = std::min({wavelengths.size(), frequencies.size(), count});
     const size_t vectorSize = size & ~3;
     
-    // Constants for logarithmic frequency to wavelength mapping
     float32x4_t minFreq = vdupq_n_f32(20.0f);
     float32x4_t maxFreq = vdupq_n_f32(20000.0f);
     float32x4_t minWavelength = vdupq_n_f32(380.0f);
@@ -474,49 +438,39 @@ void frequenciesToWavelengths(std::span<float> wavelengths, std::span<const floa
     
     size_t i = 0;
     
-    // NEON vectorized frequency to wavelength conversion
     for (; i < vectorSize; i += 4) {
         float32x4_t freqVec = vld1q_f32(&frequencies[i]);
         
-        // Handle sub-20Hz frequencies
         uint32x4_t subAudioMask = vcltq_f32(freqVec, minFreq);
         
-        // For sub-audio: map to extended red range (825nm to 750nm)
         float32x4_t subAudioT = vdivq_f32(vsubq_f32(freqVec, vdupq_n_f32(0.1f)), 
                                          vsubq_f32(minFreq, vdupq_n_f32(0.1f)));
         subAudioT = vmaxq_f32(vminq_f32(subAudioT, vdupq_n_f32(1.0f)), vdupq_n_f32(0.0f));
         float32x4_t subAudioWavelength = vsubq_f32(extendedRedWavelength, 
                                                    vmulq_f32(subAudioT, vdupq_n_f32(75.0f)));
         
-        // For audible frequencies: accurate logarithmic mapping
         float32x4_t clampedFreq = vmaxq_f32(vminq_f32(freqVec, maxFreq), minFreq);
         
-        // Accurate log2 calculation
         float32x4_t logFreq = AccurateMath::accurateLog2(vdivq_f32(clampedFreq, minFreq));
         float32x4_t logRange = AccurateMath::accurateLog2(vdivq_f32(maxFreq, minFreq));
         float32x4_t t = vdivq_f32(logFreq, logRange);
         t = vmaxq_f32(vminq_f32(t, vdupq_n_f32(1.0f)), vdupq_n_f32(0.0f));
         
-        // Map to visible spectrum (750nm to 380nm)
         float32x4_t audibleWavelength = vsubq_f32(maxWavelength, 
                                                  vmulq_f32(t, vsubq_f32(maxWavelength, minWavelength)));
         
-        // Select between sub-audio and audible wavelengths
         float32x4_t result = vbslq_f32(subAudioMask, subAudioWavelength, audibleWavelength);
         
         vst1q_f32(&wavelengths[i], result);
     }
     
-    // Handle remaining elements
     for (; i < size; ++i) {
         float freq = frequencies[i];
         
         if (freq < 20.0f) {
-            // Sub-audio frequencies: map to extended red
             float t = std::clamp((freq - 0.1f) / (20.0f - 0.1f), 0.0f, 1.0f);
             wavelengths[i] = 825.0f - t * 75.0f;
         } else {
-            // Audible frequencies: logarithmic mapping
             float clampedFreq = std::clamp(freq, 20.0f, 20000.0f);
             float logFreq = std::log2(clampedFreq / 20.0f);
             float logRange = std::log2(20000.0f / 20.0f);
@@ -533,27 +487,23 @@ void weightedColorBlend(std::span<float> result_L, std::span<float> result_a, st
                                  L_values.size(), a_values.size(), b_values.size(), weights.size(), count});
     const size_t vectorSize = size & ~3;
     
-    // Initialize accumulators
     float32x4_t L_accum = vdupq_n_f32(0.0f);
     float32x4_t a_accum = vdupq_n_f32(0.0f);
     float32x4_t b_accum = vdupq_n_f32(0.0f);
     
     size_t i = 0;
     
-    // NEON vectorized weighted blending
     for (; i < vectorSize; i += 4) {
         float32x4_t L_vec = vld1q_f32(&L_values[i]);
         float32x4_t a_vec = vld1q_f32(&a_values[i]);
         float32x4_t b_vec = vld1q_f32(&b_values[i]);
         float32x4_t weight_vec = vld1q_f32(&weights[i]);
         
-        // Weighted accumulation
         L_accum = vmlaq_f32(L_accum, L_vec, weight_vec);
         a_accum = vmlaq_f32(a_accum, a_vec, weight_vec);
         b_accum = vmlaq_f32(b_accum, b_vec, weight_vec);
     }
     
-    // Horizontal sum for final result
     float32x2_t L_low = vget_low_f32(L_accum);
     float32x2_t L_high = vget_high_f32(L_accum);
     float32x2_t L_sum_pair = vadd_f32(L_low, L_high);
@@ -569,14 +519,12 @@ void weightedColorBlend(std::span<float> result_L, std::span<float> result_a, st
     float32x2_t b_sum_pair = vadd_f32(b_low, b_high);
     float b_final = vget_lane_f32(vpadd_f32(b_sum_pair, b_sum_pair), 0);
     
-    // Handle remaining elements
     for (; i < size; ++i) {
         L_final += L_values[i] * weights[i];
         a_final += a_values[i] * weights[i];
         b_final += b_values[i] * weights[i];
     }
     
-    // Store results (assuming single output values)
     if (!result_L.empty()) result_L[0] = L_final;
     if (!result_a.empty()) result_a[0] = a_final;
     if (!result_b.empty()) result_b[0] = b_final;

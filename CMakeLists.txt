@@ -1,8 +1,8 @@
 cmake_minimum_required(VERSION 3.13)
 
 set(SYNESTHESIA_VERSION_MAJOR 2025)
-set(SYNESTHESIA_VERSION_MINOR 08)
-set(SYNESTHESIA_VERSION_PATCH 17)
+set(SYNESTHESIA_VERSION_MINOR 09)
+set(SYNESTHESIA_VERSION_PATCH 03)
 set(SYNESTHESIA_VERSION "${SYNESTHESIA_VERSION_MAJOR}.${SYNESTHESIA_VERSION_MINOR}.${SYNESTHESIA_VERSION_PATCH}")
 
 project(Synesthesia VERSION ${SYNESTHESIA_VERSION})
@@ -20,6 +20,16 @@ set(PORTAUDIO_DIR "${CMAKE_CURRENT_SOURCE_DIR}/vendor/portaudio")
 
 option(BUILD_MACOS_BUNDLE "Build as macOS .app bundle" OFF)
 option(ENABLE_NEON_OPTIMIZATIONS "Enable ARM NEON SIMD optimizations" ON)
+option(ENABLE_API_SERVER "Enable cross-application colour streaming API (macOS only)" OFF)
+
+# Automatically enable API server for macOS, disable for other platforms
+if(APPLE)
+    set(ENABLE_API_SERVER ON)
+    message(STATUS "API server enabled for macOS")
+elseif(ENABLE_API_SERVER)
+    message(WARNING "API server is only supported on macOS, disabling")
+    set(ENABLE_API_SERVER OFF)
+endif()
 
 # Detect ARM64 architecture and NEON support
 set(ARM64_DETECTED FALSE)
@@ -128,6 +138,17 @@ set(SOURCES
     ${KISSFFT_DIR}/kiss_fftr.c
 )
 
+# Add API sources if enabled
+if(ENABLE_API_SERVER)
+    list(APPEND SOURCES
+        ${SRC_DIR}/api/common/serialisation.cpp
+        ${SRC_DIR}/api/common/transport.cpp
+        ${SRC_DIR}/api/server/api_server.cpp
+        ${SRC_DIR}/api/synesthesia_api_integration.cpp
+    )
+    message(STATUS "Added API server sources to build")
+endif()
+
 # Add NEON-optimized sources for ARM64 platforms
 if(NEON_AVAILABLE AND ENABLE_NEON_OPTIMIZATIONS)
     list(APPEND SOURCES
@@ -193,6 +214,17 @@ target_include_directories(${EXECUTABLE_NAME} PRIVATE
     /opt/local/include
 )
 
+# Add API include directories if enabled
+if(ENABLE_API_SERVER)
+    target_include_directories(${EXECUTABLE_NAME} PRIVATE
+        ${SRC_DIR}/api
+        ${SRC_DIR}/api/common
+        ${SRC_DIR}/api/server
+        ${SRC_DIR}/api/client
+        ${SRC_DIR}/api/protocol
+    )
+endif()
+
 # Define version macros for the target
 target_compile_definitions(${EXECUTABLE_NAME} PRIVATE
     SYNESTHESIA_VERSION_MAJOR=${SYNESTHESIA_VERSION_MAJOR}
@@ -200,6 +232,11 @@ target_compile_definitions(${EXECUTABLE_NAME} PRIVATE
     SYNESTHESIA_VERSION_PATCH=${SYNESTHESIA_VERSION_PATCH}
     SYNESTHESIA_VERSION_STRING="${SYNESTHESIA_VERSION}"
 )
+
+# Add API preprocessor definition if enabled
+if(ENABLE_API_SERVER)
+    target_compile_definitions(${EXECUTABLE_NAME} PRIVATE ENABLE_API_SERVER)
+endif()
 
 # Platform-specific compile options
 if(WIN32)

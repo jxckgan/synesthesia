@@ -57,7 +57,6 @@ void FFTProcessor::applyWindow(const std::span<const float> buffer) {
 	
 #ifdef USE_NEON_OPTIMIZATIONS
 	if (FFTProcessorNEON::isNEONAvailable() && copySize >= 4) {
-		// Use NEON-optimized windowing
 		FFTProcessorNEON::applyHannWindow(
 			std::span<float>(fft_in.data(), copySize),
 			std::span<const float>(buffer.data(), copySize),
@@ -66,7 +65,6 @@ void FFTProcessor::applyWindow(const std::span<const float> buffer) {
 	} else
 #endif
 	{
-		// Fallback to scalar implementation
 		for (size_t i = 0; i < copySize; ++i) {
 			fft_in[i] = buffer[i] * hannWindow[i];
 		}
@@ -87,7 +85,11 @@ void FFTProcessor::processBuffer(const std::span<const float> buffer, const floa
 		i.i *= scaleFactor;
 	}
 	fft_out[0].r *= 0.5f;
-	fft_out[fft_out.size() - 1].r *= 0.5f;
+	fft_out[0].i *= 0.5f;
+	if (fft_out.size() > 1) {
+		fft_out[fft_out.size() - 1].r *= 0.5f;
+		fft_out[fft_out.size() - 1].i *= 0.5f;
+	}
 
 	findFrequencyPeaks(sampleRate);
 }
@@ -155,7 +157,6 @@ void FFTProcessor::processMagnitudes(std::vector<float>& magnitudes, const float
 		}
 	}
 
-	// Process magnitudes with EQ
 	for (size_t i = minBinIndex; i <= maxBinIndex; ++i) {
 		const float freq = static_cast<float>(i) * sampleRate / FFT_SIZE;
 
@@ -193,26 +194,22 @@ void FFTProcessor::calculateMagnitudes(std::vector<float>& rawMagnitudes, const 
 
 #ifdef USE_NEON_OPTIMIZATIONS
 	if (FFTProcessorNEON::isNEONAvailable() && fft_out.size() >= 8) {
-		// Create separate arrays for real and imaginary parts for NEON processing
 		std::vector<float> real_parts(fft_out.size());
 		std::vector<float> imag_parts(fft_out.size());
 		std::vector<float> frequencies(fft_out.size());
 		
-		// Extract real/imaginary parts and calculate frequencies
 		for (size_t i = 0; i < fft_out.size(); ++i) {
 			real_parts[i] = fft_out[i].r;
 			imag_parts[i] = fft_out[i].i;
 			frequencies[i] = static_cast<float>(i) * sampleRate / FFT_SIZE;
 		}
 		
-		// Use NEON-optimized magnitude calculation
 		FFTProcessorNEON::calculateMagnitudes(
 			std::span<float>(rawMagnitudes.data(), rawMagnitudes.size()),
 			std::span<const float>(real_parts.data(), real_parts.size()),
 			std::span<const float>(imag_parts.data(), imag_parts.size())
 		);
 		
-		// Calculate max magnitude and total energy for valid frequency range
 		for (size_t i = 1; i < fft_out.size() - 1; ++i) {
 			if (frequencies[i] < MIN_FREQ || frequencies[i] > MAX_FREQ) {
 				rawMagnitudes[i] = 0.0f;
@@ -225,7 +222,6 @@ void FFTProcessor::calculateMagnitudes(std::vector<float>& rawMagnitudes, const 
 	} else
 #endif
 	{
-		// Fallback to scalar implementation
 		for (size_t i = 1; i < fft_out.size() - 1; ++i) {
 			if (const float freq = static_cast<float>(i) * sampleRate / FFT_SIZE;
 				freq < MIN_FREQ || freq > MAX_FREQ)
@@ -258,7 +254,6 @@ void FFTProcessor::findPeaks(const float sampleRate, const float noiseFloor,
 		return a.magnitude > b.magnitude;
 	});
 
-	// Calculate spectral flatness to determine if the sound is tonal
 	const float spectralFlatness = calculateSpectralFlatness(magnitudesBuffer);
 	const float harmonic_threshold = spectralFlatness < 0.2f ? 0.15f : 0.5f;
 

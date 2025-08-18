@@ -38,10 +38,10 @@ void AudioProcessor::queueAudioData(const float* buffer, const size_t numSamples
 	if (!buffer || numSamples == 0 || !running)
 		return;
 
-	const size_t currentWrite = writeIndex.load(std::memory_order_acquire);
+	const size_t currentWrite = writeIndex.load(std::memory_order_relaxed);
 	const size_t nextWrite = (currentWrite + 1) % QUEUE_SIZE;
 
-	if (nextWrite == readIndex.load(std::memory_order_acquire)) {
+	if (nextWrite == readIndex.load(std::memory_order_relaxed)) {
 		return;
 	}
 
@@ -61,8 +61,8 @@ void AudioProcessor::processingThreadFunc() {
 	while (running) {
 		std::unique_lock lock(queueMutex);
 		dataAvailable.wait(lock, [this] {
-			return !running || readIndex.load(std::memory_order_acquire) !=
-								   writeIndex.load(std::memory_order_acquire);
+			return !running || readIndex.load(std::memory_order_relaxed) !=
+								   writeIndex.load(std::memory_order_relaxed);
 		});
 
 		if (!running)
@@ -71,8 +71,8 @@ void AudioProcessor::processingThreadFunc() {
 		lock.unlock();
 
 		while (running) {
-			const size_t currentRead = readIndex.load(std::memory_order_acquire);
-			if (currentRead == writeIndex.load(std::memory_order_acquire)) {
+			const size_t currentRead = readIndex.load(std::memory_order_relaxed);
+			if (currentRead == writeIndex.load(std::memory_order_relaxed)) {
 				break;
 			}
 
