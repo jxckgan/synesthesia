@@ -43,7 +43,8 @@ void SpectrumAnalyser::drawSpectrumWindow(
     if (ImPlot::BeginPlot("##Spectrum", ImVec2(-1, -1), 
                           ImPlotFlags_NoTitle | ImPlotFlags_NoLegend | 
                           ImPlotFlags_NoMenus | ImPlotFlags_NoBoxSelect |
-                          ImPlotFlags_NoMouseText | ImPlotFlags_NoFrame)) {
+                          ImPlotFlags_NoMouseText | ImPlotFlags_NoFrame |
+                          ImPlotFlags_NoInputs)) {
         
         ImPlot::SetupAxis(ImAxis_X1, nullptr, 
                          ImPlotAxisFlags_NoTickLabels | ImPlotAxisFlags_NoTickMarks | 
