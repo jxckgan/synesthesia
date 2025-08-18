@@ -9,9 +9,11 @@ void SpectrumAnalyser::drawSpectrumWindow(
     const std::vector<AudioInput::DeviceInfo>& devices,
     int selectedDeviceIndex,
     const ImVec2& displaySize,
-    float sidebarWidth
+    float sidebarWidth,
+    bool sidebarOnLeft
 ) {
-    auto spectrumPos = ImVec2(0.0f, displaySize.y - SPECTRUM_HEIGHT);
+    float spectrumX = sidebarOnLeft ? sidebarWidth : 0.0f;
+    auto spectrumPos = ImVec2(spectrumX, displaySize.y - SPECTRUM_HEIGHT);
     auto spectrumSize = ImVec2(displaySize.x - sidebarWidth, SPECTRUM_HEIGHT);
 
     ImGui::SetNextWindowPos(spectrumPos);
@@ -43,7 +45,8 @@ void SpectrumAnalyser::drawSpectrumWindow(
     if (ImPlot::BeginPlot("##Spectrum", ImVec2(-1, -1), 
                           ImPlotFlags_NoTitle | ImPlotFlags_NoLegend | 
                           ImPlotFlags_NoMenus | ImPlotFlags_NoBoxSelect |
-                          ImPlotFlags_NoMouseText | ImPlotFlags_NoFrame)) {
+                          ImPlotFlags_NoMouseText | ImPlotFlags_NoFrame |
+                          ImPlotFlags_NoInputs)) {
         
         ImPlot::SetupAxis(ImAxis_X1, nullptr, 
                          ImPlotAxisFlags_NoTickLabels | ImPlotAxisFlags_NoTickMarks | 

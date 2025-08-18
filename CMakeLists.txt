@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.13)
 
 set(SYNESTHESIA_VERSION_MAJOR 2025)
 set(SYNESTHESIA_VERSION_MINOR 08)
-set(SYNESTHESIA_VERSION_PATCH 17)
+set(SYNESTHESIA_VERSION_PATCH 18)
 set(SYNESTHESIA_VERSION "${SYNESTHESIA_VERSION_MAJOR}.${SYNESTHESIA_VERSION_MINOR}.${SYNESTHESIA_VERSION_PATCH}")
 
 project(Synesthesia VERSION ${SYNESTHESIA_VERSION})
@@ -117,6 +117,10 @@ set(SOURCES
     ${SRC_DIR}/ui/styling/styling.cpp
     ${SRC_DIR}/ui/spectrum_analyser/spectrum_analyser.cpp
     ${SRC_DIR}/ui.cpp
+    ${SRC_DIR}/api/common/serialisation.cpp
+    ${SRC_DIR}/api/common/transport.cpp
+    ${SRC_DIR}/api/server/api_server.cpp
+    ${SRC_DIR}/api/synesthesia_api_integration.cpp
     ${IMGUI_DIR}/imgui.cpp
     ${IMGUI_DIR}/imgui_demo.cpp
     ${IMGUI_DIR}/imgui_draw.cpp
@@ -187,6 +191,11 @@ target_include_directories(${EXECUTABLE_NAME} PRIVATE
     ${SRC_DIR}/ui/styling
     ${SRC_DIR}/ui/spectrum_analyser
     ${SRC_DIR}/zero_crossing
+    ${SRC_DIR}/api
+    ${SRC_DIR}/api/common
+    ${SRC_DIR}/api/server
+    ${SRC_DIR}/api/client
+    ${SRC_DIR}/api/protocol
     ${CMAKE_BINARY_DIR}
     /usr/local/include
     /opt/homebrew/include

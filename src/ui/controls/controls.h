@@ -6,6 +6,9 @@
 #include "imgui.h"
 #include <vector>
 
+// Forward declaration
+struct UIState;
+
 namespace Controls {
     void renderFrequencyInfoPanel(AudioInput& audioInput, float* clear_color);
     
@@ -27,6 +30,8 @@ namespace Controls {
                               float controlWidth,
                               float buttonHeight,
                               float contentWidth);
+
+    void renderAdvancedSettingsPanel(UIState& state);
 }
 
 #endif

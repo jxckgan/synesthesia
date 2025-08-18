@@ -15,11 +15,17 @@
 #include "styling.h"
 #include "spectrum_analyser.h"
 #include "device_manager.h"
+#include "api/synesthesia_api_integration.h"
 
 void initialiseApp(UIState& state) {
     if (!state.updateState.hasCheckedThisSession) {
         state.updateChecker.checkForUpdates("jxckgan", "synesthesia");
         state.updateState.hasCheckedThisSession = true;
+    }
+    
+    auto& api = Synesthesia::SynesthesiaAPIIntegration::getInstance();
+    if (api.isServerRunning() && !state.apiServerEnabled) {
+        api.stopServer();
     }
 }
 
@@ -80,10 +86,24 @@ void updateUI(AudioInput& audioInput, const std::vector<AudioInput::DeviceInfo>&
 		}
 
 		if (newValid) {
-			colourSmoother.setTargetColour(colourResult.r, colourResult.g, colourResult.b);
-			colourSmoother.update(deltaTime * UIConstants::COLOUR_SMOOTH_UPDATE_FACTOR);
-			colourSmoother.getCurrentColour(clear_color[0], clear_color[1], clear_color[2]);
+			if (state.smoothingEnabled) {
+				// Apply smoothing
+				colourSmoother.setTargetColour(colourResult.r, colourResult.g, colourResult.b);
+				colourSmoother.update(deltaTime * UIConstants::COLOUR_SMOOTH_UPDATE_FACTOR);
+				colourSmoother.getCurrentColour(clear_color[0], clear_color[1], clear_color[2]);
+			} else {
+				// No smoothing - use raw colors directly
+				clear_color[0] = colourResult.r;
+				clear_color[1] = colourResult.g;
+				clear_color[2] = colourResult.b;
+			}
 		}
+
+		// Update API with final colour data (post-smoothing if enabled)
+		auto& api = Synesthesia::SynesthesiaAPIIntegration::getInstance();
+		api.updateFinalColour(clear_color[0], clear_color[1], clear_color[2],
+		                     freqs, mags, static_cast<uint32_t>(UIConstants::DEFAULT_SAMPLE_RATE), 
+		                     1024); // Default FFT size
 
 		audioInput.getFFTProcessor().setEQGains(state.lowGain, state.midGain, state.highGain);
 
@@ -111,7 +131,9 @@ void updateUI(AudioInput& audioInput, const std::vector<AudioInput::DeviceInfo>&
 
 		ImVec2 displaySize = io.DisplaySize;
 
-		ImGui::SetNextWindowPos(ImVec2(displaySize.x - SIDEBAR_WIDTH, 0));
+		// Position sidebar based on user preference
+		float sidebarX = state.sidebarOnLeft ? 0 : (displaySize.x - SIDEBAR_WIDTH);
+		ImGui::SetNextWindowPos(ImVec2(sidebarX, 0));
 		ImGui::SetNextWindowSize(ImVec2(SIDEBAR_WIDTH, displaySize.y));
 
 		ImGui::Begin(
@@ -160,6 +182,8 @@ void updateUI(AudioInput& audioInput, const std::vector<AudioInput::DeviceInfo>&
 				BUTTON_HEIGHT,
 				contentWidth
 			);
+			
+			Controls::renderAdvancedSettingsPanel(state);
 		}
 
 		float bottomTextHeight = ImGui::GetTextLineHeightWithSpacing() + 12;
@@ -184,7 +208,8 @@ void updateUI(AudioInput& audioInput, const std::vector<AudioInput::DeviceInfo>&
 				devices,
 				state.deviceState.selectedDeviceIndex,
 				displaySize,
-				SIDEBAR_WIDTH
+				SIDEBAR_WIDTH,
+				state.sidebarOnLeft
 			);
 		}
 	}

@@ -13,7 +13,8 @@ public:
         const std::vector<AudioInput::DeviceInfo>& devices,
         int selectedDeviceIndex,
         const ImVec2& displaySize,
-        float sidebarWidth
+        float sidebarWidth,
+        bool sidebarOnLeft = false
     );
 
 private:

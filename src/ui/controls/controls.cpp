@@ -6,6 +6,7 @@
 
 #include "colour_mapper.h"
 #include "ui.h"
+#include "api/synesthesia_api_integration.h"
 
 namespace Controls {
 
@@ -119,7 +120,132 @@ void renderEQControlsPanel(float& lowGain,
         }
 
         ImGui::Unindent(10);
-        ImGui::Spacing();
+    }
+}
+
+void renderAdvancedSettingsPanel(UIState& state) {
+    ImGui::Spacing();
+    if (ImGui::CollapsingHeader("Advanced Settings")) {
+        if (ImGui::CollapsingHeader("Program Appearance")) {
+            ImGui::Text("Sidebar Position:");
+            ImGui::SameLine();
+            if (ImGui::Button("Swap")) {
+                state.sidebarOnLeft = !state.sidebarOnLeft;
+            }
+            ImGui::Text("Currently: %s", state.sidebarOnLeft ? "Left" : "Right");
+            
+            ImGui::Spacing();
+            if (ImGui::Checkbox("Enable Colour Smoothing", &state.smoothingEnabled)) {
+                if (!state.smoothingEnabled) {
+                    // Show photosensitivity warning when disabling smoothing
+                    ImGui::OpenPopup("Photosensitivity Warning");
+                }
+            }
+            if (ImGui::IsItemHovered()) {
+                ImGui::SetTooltip("Smoothing reduces rapid colour changes. Disabling may cause rapid flashing.");
+            }
+            
+            // Photosensitivity warning popup
+            if (ImGui::BeginPopupModal("Photosensitivity Warning", nullptr, ImGuiWindowFlags_AlwaysAutoResize)) {
+                ImGui::Text("Warning: Disabling colour smoothing may cause rapid flashing colours.");
+                ImGui::Text("This could potentially trigger photosensitive epilepsy in sensitive individuals.");
+                ImGui::Spacing();
+                ImGui::Text("Are you sure you want to disable smoothing?");
+                ImGui::Spacing();
+                
+                if (ImGui::Button("Yes, Disable Smoothing")) {
+                    ImGui::CloseCurrentPopup();
+                }
+                ImGui::SameLine();
+                if (ImGui::Button("No, Keep Smoothing Enabled")) {
+                    state.smoothingEnabled = true; // Re-enable smoothing
+                    ImGui::CloseCurrentPopup();
+                }
+                ImGui::EndPopup();
+            }
+        }
+        
+        if (ImGui::CollapsingHeader("API Settings")) {
+            auto& api = Synesthesia::SynesthesiaAPIIntegration::getInstance();
+
+            ImGui::Text("Server Status: %s", api.isServerRunning() ? "Running" : "Stopped");
+            
+            auto clients = api.getConnectedClients();
+            ImGui::Text("Connected Clients: %zu", clients.size());
+            
+            if (!clients.empty()) {
+                ImGui::Indent();
+                for (size_t i = 0; i < clients.size() && i < 5; ++i) {
+                    ImGui::Text("• %s", clients[i].c_str());
+                }
+                if (clients.size() > 5) {
+                    ImGui::Text("... and %zu more", clients.size() - 5);
+                }
+                ImGui::Unindent();
+            }
+            
+            ImGui::Text("Data Points: %zu", api.getLastDataSize());
+            
+            if (api.isServerRunning()) {
+                ImGui::Spacing();
+                ImGui::Separator();
+                ImGui::Text("Performance Status");
+                ImGui::Spacing();
+                
+                uint32_t current_fps = api.getCurrentFPS();
+                bool high_perf = api.isHighPerformanceMode();
+                float avg_frame_time = api.getAverageFrameTime();
+                
+                ImGui::Text("Current FPS: %u", current_fps);
+                ImGui::Text("Mode: %s", high_perf ? "High Performance" : "Standard");
+                if (avg_frame_time > 0) {
+                    ImGui::Text("Avg Frame Time: %.2fms", avg_frame_time);
+                    float estimated_latency = avg_frame_time;
+                    ImGui::Text("Estimated Latency: ~%.1fms", estimated_latency);
+                    
+                    // Visual indicator
+                    if (estimated_latency < 5.0f) {
+                        ImGui::TextColored(ImVec4(0.0f, 1.0f, 0.0f, 1.0f), "✓ Ultra-Low Latency");
+                    } else if (estimated_latency < 10.0f) {
+                        ImGui::TextColored(ImVec4(0.5f, 1.0f, 0.0f, 1.0f), "✓ Low Latency");
+                    } else if (estimated_latency < 20.0f) {
+                        ImGui::TextColored(ImVec4(1.0f, 1.0f, 0.0f, 1.0f), "⚠ Moderate Latency");
+                    } else {
+                        ImGui::TextColored(ImVec4(1.0f, 0.0f, 0.0f, 1.0f), "⚠ High Latency");
+                    }
+                }
+                
+                ImGui::Text("Total Frames: %llu", api.getTotalFramesSent());
+                ImGui::Separator();
+            }
+            
+            ImGui::Spacing();
+            bool serverRunning = api.isServerRunning();
+            
+            if (!serverRunning) {
+                if (ImGui::Button("Enable")) {
+                    state.apiServerEnabled = true;
+                    api.startServer(); // Now uses optimized settings by default
+                }
+            } else {
+                ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.6f, 0.6f, 0.6f, 0.4f));
+                ImGui::Button("Enable");
+                ImGui::PopStyleColor();
+            }
+            
+            ImGui::SameLine();
+            
+            if (serverRunning) {
+                if (ImGui::Button("Disable")) {
+                    state.apiServerEnabled = false;
+                    api.stopServer();
+                }
+            } else {
+                ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.6f, 0.6f, 0.6f, 0.4f));
+                ImGui::Button("Disable");
+                ImGui::PopStyleColor();
+            }
+        }
     }
 }
 
