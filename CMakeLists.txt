@@ -20,6 +20,16 @@ set(PORTAUDIO_DIR "${CMAKE_CURRENT_SOURCE_DIR}/vendor/portaudio")
 
 option(BUILD_MACOS_BUNDLE "Build as macOS .app bundle" OFF)
 option(ENABLE_NEON_OPTIMIZATIONS "Enable ARM NEON SIMD optimizations" ON)
+option(ENABLE_API_SERVER "Enable cross-application colour streaming API (macOS only)" OFF)
+
+# Automatically enable API server for macOS, disable for other platforms
+if(APPLE)
+    set(ENABLE_API_SERVER ON)
+    message(STATUS "API server enabled for macOS")
+elseif(ENABLE_API_SERVER)
+    message(WARNING "API server is only supported on macOS, disabling")
+    set(ENABLE_API_SERVER OFF)
+endif()
 
 # Detect ARM64 architecture and NEON support
 set(ARM64_DETECTED FALSE)
@@ -117,10 +127,6 @@ set(SOURCES
     ${SRC_DIR}/ui/styling/styling.cpp
     ${SRC_DIR}/ui/spectrum_analyser/spectrum_analyser.cpp
     ${SRC_DIR}/ui.cpp
-    ${SRC_DIR}/api/common/serialisation.cpp
-    ${SRC_DIR}/api/common/transport.cpp
-    ${SRC_DIR}/api/server/api_server.cpp
-    ${SRC_DIR}/api/synesthesia_api_integration.cpp
     ${IMGUI_DIR}/imgui.cpp
     ${IMGUI_DIR}/imgui_demo.cpp
     ${IMGUI_DIR}/imgui_draw.cpp
@@ -131,6 +137,17 @@ set(SOURCES
     ${KISSFFT_DIR}/kiss_fft.c
     ${KISSFFT_DIR}/kiss_fftr.c
 )
+
+# Add API sources if enabled
+if(ENABLE_API_SERVER)
+    list(APPEND SOURCES
+        ${SRC_DIR}/api/common/serialisation.cpp
+        ${SRC_DIR}/api/common/transport.cpp
+        ${SRC_DIR}/api/server/api_server.cpp
+        ${SRC_DIR}/api/synesthesia_api_integration.cpp
+    )
+    message(STATUS "Added API server sources to build")
+endif()
 
 # Add NEON-optimized sources for ARM64 platforms
 if(NEON_AVAILABLE AND ENABLE_NEON_OPTIMIZATIONS)
@@ -191,16 +208,22 @@ target_include_directories(${EXECUTABLE_NAME} PRIVATE
     ${SRC_DIR}/ui/styling
     ${SRC_DIR}/ui/spectrum_analyser
     ${SRC_DIR}/zero_crossing
-    ${SRC_DIR}/api
-    ${SRC_DIR}/api/common
-    ${SRC_DIR}/api/server
-    ${SRC_DIR}/api/client
-    ${SRC_DIR}/api/protocol
     ${CMAKE_BINARY_DIR}
     /usr/local/include
     /opt/homebrew/include
     /opt/local/include
 )
+
+# Add API include directories if enabled
+if(ENABLE_API_SERVER)
+    target_include_directories(${EXECUTABLE_NAME} PRIVATE
+        ${SRC_DIR}/api
+        ${SRC_DIR}/api/common
+        ${SRC_DIR}/api/server
+        ${SRC_DIR}/api/client
+        ${SRC_DIR}/api/protocol
+    )
+endif()
 
 # Define version macros for the target
 target_compile_definitions(${EXECUTABLE_NAME} PRIVATE
@@ -209,6 +232,11 @@ target_compile_definitions(${EXECUTABLE_NAME} PRIVATE
     SYNESTHESIA_VERSION_PATCH=${SYNESTHESIA_VERSION_PATCH}
     SYNESTHESIA_VERSION_STRING="${SYNESTHESIA_VERSION}"
 )
+
+# Add API preprocessor definition if enabled
+if(ENABLE_API_SERVER)
+    target_compile_definitions(${EXECUTABLE_NAME} PRIVATE ENABLE_API_SERVER)
+endif()
 
 # Platform-specific compile options
 if(WIN32)

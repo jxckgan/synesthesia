@@ -15,7 +15,9 @@
 #include "styling.h"
 #include "spectrum_analyser.h"
 #include "device_manager.h"
+#ifdef ENABLE_API_SERVER
 #include "api/synesthesia_api_integration.h"
+#endif
 
 void initialiseApp(UIState& state) {
     if (!state.updateState.hasCheckedThisSession) {
@@ -23,10 +25,12 @@ void initialiseApp(UIState& state) {
         state.updateState.hasCheckedThisSession = true;
     }
     
+#ifdef ENABLE_API_SERVER
     auto& api = Synesthesia::SynesthesiaAPIIntegration::getInstance();
     if (api.isServerRunning() && !state.apiServerEnabled) {
         api.stopServer();
     }
+#endif
 }
 
 void updateUI(AudioInput& audioInput, const std::vector<AudioInput::DeviceInfo>& devices,
@@ -99,13 +103,26 @@ void updateUI(AudioInput& audioInput, const std::vector<AudioInput::DeviceInfo>&
 			}
 		}
 
-		// Update API with final colour data (post-smoothing if enabled)
+		// Apply EQ gains first so they affect frequency peak detection
+		audioInput.getFFTProcessor().setEQGains(state.lowGain, state.midGain, state.highGain);
+		
+		// Get EQ-processed frequency peaks for API (after EQ is applied)
+		auto eqPeaks = audioInput.getFrequencyPeaks();
+		std::vector<float> eqFreqs, eqMags;
+		eqFreqs.reserve(eqPeaks.size());
+		eqMags.reserve(eqPeaks.size());
+		for (const auto& peak : eqPeaks) {
+			eqFreqs.push_back(peak.frequency);
+			eqMags.push_back(peak.magnitude);
+		}
+		
+		// Update API with final colour data (post-smoothing and post-EQ)
+#ifdef ENABLE_API_SERVER
 		auto& api = Synesthesia::SynesthesiaAPIIntegration::getInstance();
 		api.updateFinalColour(clear_color[0], clear_color[1], clear_color[2],
-		                     freqs, mags, static_cast<uint32_t>(UIConstants::DEFAULT_SAMPLE_RATE), 
+		                     eqFreqs, eqMags, static_cast<uint32_t>(UIConstants::DEFAULT_SAMPLE_RATE), 
 		                     1024); // Default FFT size
-
-		audioInput.getFFTProcessor().setEQGains(state.lowGain, state.midGain, state.highGain);
+#endif
 
 		const auto& magnitudes = audioInput.getFFTProcessor().getMagnitudesBuffer();
 		if (state.smoothedMagnitudes.size() != magnitudes.size()) {
@@ -139,7 +156,7 @@ void updateUI(AudioInput& audioInput, const std::vector<AudioInput::DeviceInfo>&
 		ImGui::Begin(
 			"Sidebar", nullptr,
 			ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove);
-
+		
 		ImGui::SetCursorPosY(20);
 		ImGui::PushFont(ImGui::GetIO().Fonts->Fonts[0]);
 		ImGui::SetCursorPosX((SIDEBAR_WIDTH - ImGui::CalcTextSize("Synesthesia").x) * 0.5f);
@@ -153,7 +170,7 @@ void updateUI(AudioInput& audioInput, const std::vector<AudioInput::DeviceInfo>&
 
 		if (state.deviceState.selectedDeviceIndex >= 0 && !state.deviceState.streamError) {
 			constexpr float BUTTON_HEIGHT = 25.0f;
-			constexpr float CONTROL_WIDTH = 150.0f;
+			constexpr float CONTROL_WIDTH = 130.0f;
 			constexpr float LABEL_WIDTH = 90.0f;
 			
 			DeviceManager::renderChannelSelection(state.deviceState, audioInput, devices);
@@ -186,13 +203,13 @@ void updateUI(AudioInput& audioInput, const std::vector<AudioInput::DeviceInfo>&
 			Controls::renderAdvancedSettingsPanel(state);
 		}
 
+		// Calculate if we need spacing to push bottom text down, but allow natural scrolling
 		float bottomTextHeight = ImGui::GetTextLineHeightWithSpacing() + 12;
 		float currentCursorY = ImGui::GetCursorPosY();
-
 		if (float spaceToBottom = ImGui::GetWindowHeight() - currentCursorY - bottomTextHeight -
-								  style.WindowPadding.y;
-			spaceToBottom > 0.0f) {
-			ImGui::Dummy(ImVec2(0.0f, spaceToBottom));
+										  style.WindowPadding.y;
+					spaceToBottom > 0.0f) {
+					ImGui::Dummy(ImVec2(0.0f, spaceToBottom));
 		}
 
 		ImGui::Separator();
