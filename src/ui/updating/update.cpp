@@ -353,7 +353,6 @@ void UpdateChecker::openDownloadUrl(const std::string& url) {
     std::string command = "open \"" + url + "\"";
     int result = system(command.c_str());
     if (result != 0) {
-        // Log error or handle failure silently
     }
 #endif
 }

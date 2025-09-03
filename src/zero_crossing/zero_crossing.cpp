@@ -68,10 +68,16 @@ void ZeroCrossingDetector::analyseZeroCrossings() {
 	float prevCrossing = 0.0f;
 	bool foundFirst = false;
 
-	for (size_t i = 1; i < BUFFER_SIZE; ++i) {
-		const float current = sampleBuffer[i];
+	const size_t samplesToAnalyse = std::min(sampleCount, BUFFER_SIZE);
+	
+	for (size_t i = 1; i < samplesToAnalyse; ++i) {
+		const size_t currentIdx = i % BUFFER_SIZE;
+		const size_t prevIdx = (i - 1) % BUFFER_SIZE;
+		
+		const float current = sampleBuffer[currentIdx];
+		const float previous = sampleBuffer[prevIdx];
 
-		if (const float previous = sampleBuffer[i - 1]; previous <= 0.0f && current > 0.0f) {
+		if (previous <= 0.0f && current > 0.0f) {
 			const float t = -previous / (current - previous);
 			const float exactPosition = static_cast<float>(i - 1) + t;
 
@@ -99,7 +105,14 @@ void ZeroCrossingDetector::analyseZeroCrossings() {
 		estimatedFrequency = roughFreq;
 	}
 
-	sampleCount = BUFFER_SIZE / 2;
+	const size_t keepSamples = BUFFER_SIZE / 2;
+	if (sampleCount > keepSamples) {
+		for (size_t i = 0; i < keepSamples; ++i) {
+			const size_t srcIdx = (sampleCount - keepSamples + i) % BUFFER_SIZE;
+			sampleBuffer[i] = sampleBuffer[srcIdx];
+		}
+		sampleCount = keepSamples;
+	}
 	zeroCrossings = 0;
 }
 

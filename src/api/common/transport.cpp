@@ -32,7 +32,7 @@ public:
         if (server_fd_ == -1) return false;
         
         if (is_server_) {
-            unlink(socket_path_.c_str()); // Remove existing socket file
+            unlink(socket_path_.c_str());
             
             struct sockaddr_un addr{};
             addr.sun_family = AF_UNIX;
@@ -149,7 +149,7 @@ private:
                 max_fd = std::max(max_fd, fd);
             }
             
-            struct timeval timeout{0, 100000}; // 100ms timeout
+            struct timeval timeout{0, 100000};
             int activity = select(max_fd + 1, &read_fds, nullptr, nullptr, &timeout);
             
             if (activity < 0) break;
@@ -182,7 +182,7 @@ private:
             FD_ZERO(&read_fds);
             FD_SET(server_fd_, &read_fds);
             
-            struct timeval timeout{0, 100000}; // 100ms timeout
+            struct timeval timeout{0, 100000};
             int activity = select(server_fd_ + 1, &read_fds, nullptr, nullptr, &timeout);
             
             if (activity < 0) break;
@@ -191,7 +191,7 @@ private:
             if (FD_ISSET(server_fd_, &read_fds)) {
                 ssize_t bytes = recv(server_fd_, buffer, sizeof(buffer), 0);
                 if (bytes <= 0) {
-                    break; // Connection lost
+                    break;
                 }
                 
                 if (message_callback_) {
@@ -217,7 +217,7 @@ private:
         char buffer[4096];
         ssize_t bytes = recv(fd, buffer, sizeof(buffer), 0);
         if (bytes <= 0) {
-            return false; // Connection lost
+            return false;
         }
         
         if (message_callback_) {
@@ -345,7 +345,7 @@ public:
     }
     
     std::vector<std::string> getConnectedClients() const {
-        return {}; // UDP is connectionless
+        return {};
     }
 
 private:
@@ -359,7 +359,7 @@ private:
             FD_ZERO(&read_fds);
             FD_SET(socket_fd_, &read_fds);
             
-            struct timeval timeout{0, 100000}; // 100ms timeout
+            struct timeval timeout{0, 100000};
             int activity = select(socket_fd_ + 1, &read_fds, nullptr, nullptr, &timeout);
             
             if (activity <= 0) continue;

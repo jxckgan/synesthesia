@@ -130,8 +130,8 @@ void renderAdvancedSettingsPanel(UIState& state) {
     
     ImGui::Spacing();
     if (ImGui::CollapsingHeader("Advanced Settings")) {
-        ImGui::Indent(10);
         if (ImGui::CollapsingHeader("Program Appearance")) {
+			ImGui::Indent(10);
             ImGui::Text("Sidebar: %s", state.sidebarOnLeft ? "Left" : "Right");
             if (ImGui::Button("Swap Sides")) {
                 state.sidebarOnLeft = !state.sidebarOnLeft;
@@ -142,11 +142,9 @@ void renderAdvancedSettingsPanel(UIState& state) {
             if (ImGui::Checkbox("Enable Smoothing", &currentSmoothingState)) {
                 if (currentSmoothingState != state.smoothingEnabled) {
                     if (!currentSmoothingState && state.smoothingEnabled) {
-                        // User wants to disable smoothing - show warning first
                         previousSmoothingState = state.smoothingEnabled;
                         ImGui::OpenPopup("Photosensitivity Warning");
                     } else {
-                        // User is enabling smoothing - allow immediately
                         state.smoothingEnabled = currentSmoothingState;
                     }
                 }
@@ -155,9 +153,8 @@ void renderAdvancedSettingsPanel(UIState& state) {
                 ImGui::SetTooltip("Smoothing reduces rapid colour changes.\nDisabling will cause rapid flashing.");
             }
             
-            // Photosensitivity warning popup
             if (ImGui::BeginPopupModal("Photosensitivity Warning", nullptr, ImGuiWindowFlags_AlwaysAutoResize)) {
-                ImGui::PushTextWrapPos(ImGui::GetCursorPos().x + 350.0f); // Constrain width
+                ImGui::PushTextWrapPos(ImGui::GetCursorPos().x + 350.0f);
                 ImGui::TextWrapped("Warning: Disabling smoothing will cause rapidly flashing colours which can trigger photosensitive epilepsy in sensitive individuals.");
                 ImGui::Spacing();
                 ImGui::TextWrapped("Are you sure you want to disable smoothing?");
@@ -175,10 +172,12 @@ void renderAdvancedSettingsPanel(UIState& state) {
                 }
                 ImGui::EndPopup();
             }
+			ImGui::Unindent(10);
         }
         
 #ifdef ENABLE_API_SERVER
         if (ImGui::CollapsingHeader("API Settings")) {
+			ImGui::Indent(10);
             auto& api = Synesthesia::SynesthesiaAPIIntegration::getInstance();
 
             ImGui::Text("Server Status: %s", api.isServerRunning() ? "Running" : "Stopped");
@@ -189,7 +188,6 @@ void renderAdvancedSettingsPanel(UIState& state) {
             if (!clients.empty()) {
                 ImGui::Indent();
                 for (size_t i = 0; i < clients.size() && i < 5; ++i) {
-                    // Truncate long client names to prevent horizontal overflow
                     std::string clientName = clients[i];
                     if (clientName.length() > 25) {
                         clientName = clientName.substr(0, 22) + "...";
@@ -214,7 +212,6 @@ void renderAdvancedSettingsPanel(UIState& state) {
                 bool high_perf = api.isHighPerformanceMode();
                 float avg_frame_time = api.getAverageFrameTime();
                 
-                // Constrain text width to prevent horizontal overflow
                 ImGui::PushTextWrapPos(ImGui::GetCursorPos().x + 220.0f);
                 
                 ImGui::Text("FPS: %u", current_fps);
@@ -224,7 +221,6 @@ void renderAdvancedSettingsPanel(UIState& state) {
                     float estimated_latency = avg_frame_time;
                     ImGui::Text("Latency: ~%.1fms", estimated_latency);
                     
-                    // Visual indicator
                     if (estimated_latency < 5.0f) {
                         ImGui::TextColored(ImVec4(0.0f, 1.0f, 0.0f, 1.0f), "✓ Ultra-Low");
                     } else if (estimated_latency < 10.0f) {
@@ -245,13 +241,12 @@ void renderAdvancedSettingsPanel(UIState& state) {
             ImGui::Spacing();
             bool serverRunning = api.isServerRunning();
             
-            // Constrain button widths to prevent horizontal overflow
             float buttonWidth = (220.0f - ImGui::GetStyle().ItemSpacing.x) / 2;
             
             if (!serverRunning) {
                 if (ImGui::Button("Enable", ImVec2(buttonWidth, 0))) {
                     state.apiServerEnabled = true;
-                    api.startServer(); // Now uses optimized settings by default
+                    api.startServer();
                 }
             } else {
                 ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.6f, 0.6f, 0.6f, 0.4f));
@@ -271,9 +266,10 @@ void renderAdvancedSettingsPanel(UIState& state) {
                 ImGui::Button("Disable", ImVec2(buttonWidth, 0));
                 ImGui::PopStyleColor();
             }
+			
+			ImGui::Unindent(10);
         }
-#endif // ENABLE_API_SERVER
-        ImGui::Unindent(10);
+#endif
     }
 }
 

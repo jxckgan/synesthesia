@@ -60,9 +60,9 @@ void UIStyler::setColors(ImGuiStyle& style) {
     colours[ImGuiCol_HeaderActive] = ImVec4(0.40f, 0.40f, 0.45f, 0.70f);
     
     colours[ImGuiCol_ScrollbarBg] = ImVec4(0.07f, 0.07f, 0.09f, 0.00f);
-    colours[ImGuiCol_ScrollbarGrab] = ImVec4(0.25f, 0.25f, 0.28f, 0.40f);  // More subtle
-    colours[ImGuiCol_ScrollbarGrabHovered] = ImVec4(0.35f, 0.35f, 0.38f, 0.60f);  // More subtle
-    colours[ImGuiCol_ScrollbarGrabActive] = ImVec4(0.45f, 0.45f, 0.48f, 0.70f);  // More subtle
+    colours[ImGuiCol_ScrollbarGrab] = ImVec4(0.25f, 0.25f, 0.28f, 0.40f);
+    colours[ImGuiCol_ScrollbarGrabHovered] = ImVec4(0.35f, 0.35f, 0.38f, 0.60f);
+    colours[ImGuiCol_ScrollbarGrabActive] = ImVec4(0.45f, 0.45f, 0.48f, 0.70f);
     
     colours[ImGuiCol_CheckMark] = ImVec4(0.90f, 0.90f, 0.95f, 1.00f);
     colours[ImGuiCol_Text] = ImVec4(0.95f, 0.95f, 0.95f, 1.00f);

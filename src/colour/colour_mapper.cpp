@@ -7,12 +7,8 @@
 #include <vector>
 
 void ColourMapper::interpolateCIE(float wavelength, float& X, float& Y, float& Z) {
-	// Handle extended infrared range for sub-20Hz frequencies
 	if (wavelength > 825.0f) {
-		// For wavelengths beyond the CIE table, extrapolate from the last entry
-		// This gives very deep red/infrared colours for sub-audio frequencies
 		const auto& lastEntry = CIE_1931[CIE_TABLE_SIZE - 1];
-		// Make sub-20Hz frequencies more visible by boosting intensity
 		X = lastEntry[1] * 0.1f * SUB_AUDIO_BRIGHTNESS_BOOST;
 		Y = lastEntry[2] * 0.1f * SUB_AUDIO_BRIGHTNESS_BOOST;
 		Z = lastEntry[3] * 0.1f * SUB_AUDIO_BRIGHTNESS_BOOST;
@@ -85,8 +81,8 @@ void ColourMapper::XYZtoLab(const float X, const float Y, const float Z, float& 
 	const float zr = REF_Z > 0.0f ? Z / REF_Z : 0.0f;
 
 	auto f = [](const float t) {
-		constexpr float epsilon = 0.008856f;  // (6/29)^3
-		constexpr float kappa = 903.3f;		  // 116/delta^3, where delta = 6/29
+		constexpr float epsilon = 0.008856f;
+		constexpr float kappa = 903.3f;
 		return t > epsilon ? std::pow(t, 1.0f / 3.0f) : (kappa * t + 16.0f) / 116.0f;
 	};
 
@@ -153,18 +149,14 @@ void ColourMapper::wavelengthToRGBCIE(float wavelength, float& r, float& g, floa
 
 float ColourMapper::logFrequencyToWavelength(const float freq) {
 	if (!std::isfinite(freq) || freq <= 0.0f)
-		return MAX_WAVELENGTH;  // Return deep red for invalid frequencies
+		return MAX_WAVELENGTH;
 
-	// Special handling for sub-20Hz frequencies to extend into deep red spectrum
 	if (freq < MIN_FREQ) {
-		// Map 0.1Hz to 20Hz onto the deep red portion (780nm to 750nm)
 		const float SUB_AUDIO_MIN = 0.1f;
 		const float t_sub = std::clamp((freq - SUB_AUDIO_MIN) / (MIN_FREQ - SUB_AUDIO_MIN), 0.0f, 1.0f);
-		// Use extended red range: 825nm (deep IR) down to 750nm (visible red)
 		return 825.0f - t_sub * (825.0f - 750.0f);
 	}
 
-	// Calculate octave position using logarithmic mapping for audible range
 	const float MIN_LOG_FREQ = std::log2(MIN_FREQ);
 	const float MAX_LOG_FREQ = std::log2(MAX_FREQ);
 	const float LOG_FREQ_RANGE = MAX_LOG_FREQ - MIN_LOG_FREQ;
@@ -173,11 +165,8 @@ float ColourMapper::logFrequencyToWavelength(const float freq) {
 	const float normalisedLogFreq = (logFreq - MIN_LOG_FREQ) / LOG_FREQ_RANGE;
 	const float t = std::clamp(normalisedLogFreq, 0.0f, 1.0f);
 
-	// Map audible frequencies (20Hz-20kHz) to visible spectrum (750nm-380nm)
-	// Low frequencies (bass) -> longer wavelengths (red)
-	// High frequencies (treble) -> shorter wavelengths (violet/blue)
-	const float AUDIBLE_MIN_WAVELENGTH = 380.0f;  // Violet
-	const float AUDIBLE_MAX_WAVELENGTH = 750.0f;  // Red
+	const float AUDIBLE_MIN_WAVELENGTH = 380.0f;
+	const float AUDIBLE_MAX_WAVELENGTH = 750.0f;
 	return AUDIBLE_MAX_WAVELENGTH - t * (AUDIBLE_MAX_WAVELENGTH - AUDIBLE_MIN_WAVELENGTH);
 }
 
@@ -195,14 +184,14 @@ ColourMapper::SpectralCharacteristics ColourMapper::calculateSpectralCharacteris
 	float totalWeight = 0.0f;
 	float weightedFreqSum = 0.0f;
 
-	// Collect valid data and calculate basic statistics
 	for (size_t i = 0; i < spectrum.size(); ++i) {
 		float value = spectrum[i];
 		if (value <= 1e-6f || !std::isfinite(value)) {
 			continue;
 		}
 
-		const float freq = static_cast<float>(i) * sampleRate / (2.0f * (spectrum.size() - 1));
+		const float freq = spectrum.size() <= 1 ? 0.0f : 
+			static_cast<float>(i) * sampleRate / (2.0f * (spectrum.size() - 1));
 		if (freq < MIN_FREQ || freq > MAX_FREQ) {
 			continue;
 		}
@@ -212,7 +201,6 @@ ColourMapper::SpectralCharacteristics ColourMapper::calculateSpectralCharacteris
 		weightedFreqSum += freq * value;
 	}
 
-	// Calculate spectral flatness
 	if (!validValues.empty() && totalWeight > 0.0f) {
 		float logSum = 0.0f;
 		for (const float value : validValues) {
@@ -226,10 +214,8 @@ ColourMapper::SpectralCharacteristics ColourMapper::calculateSpectralCharacteris
 			result.flatness = geometricMean / arithmeticMean;
 		}
 
-		// Calculate spectral centroid
 		result.centroid = weightedFreqSum / totalWeight;
 
-		// Calculate spectral spread
 		float spreadSum = 0.0f;
 		for (size_t i = 0; i < spectrum.size(); ++i) {
 			const float value = spectrum[i];
@@ -237,7 +223,8 @@ ColourMapper::SpectralCharacteristics ColourMapper::calculateSpectralCharacteris
 				continue;
 			}
 
-			const float freq = static_cast<float>(i) * sampleRate / (2.0f * (spectrum.size() - 1));
+			const float freq = spectrum.size() <= 1 ? 0.0f : 
+				static_cast<float>(i) * sampleRate / (2.0f * (spectrum.size() - 1));
 			if (freq < MIN_FREQ || freq > MAX_FREQ) {
 				continue;
 			}
@@ -313,7 +300,6 @@ ColourMapper::ColourResult ColourMapper::frequenciesToColour(
 				float b_blend = 0.0f;
 				float dominantWavelength = logFrequencyToWavelength(maxFrequency);
 
-				// Prepare vectors for batch processing
 				std::vector<float> validFrequencies;
 				std::vector<float> normalizedWeights;
 				std::vector<float> wavelengths;
@@ -344,19 +330,16 @@ ColourMapper::ColourResult ColourMapper::frequenciesToColour(
 				if (validCount > 0) {
 #ifdef USE_NEON_OPTIMIZATIONS
 					if (ColourMapperNEON::isNEONAvailable() && validCount >= 4) {
-						// Use NEON-optimized frequency to wavelength conversion
 						ColourMapperNEON::frequenciesToWavelengths(
 							std::span<float>(wavelengths.data(), validCount),
 							std::span<const float>(validFrequencies.data(), validCount),
 							validCount
 						);
 						
-						// Convert wavelengths to RGB in batches (simplified for this example)
 						for (size_t i = 0; i < validCount; ++i) {
 							wavelengthToRGBCIE(wavelengths[i], r_values[i], g_values[i], b_values[i]);
 						}
 						
-						// Use NEON-optimized RGB to Lab conversion
 						ColourMapperNEON::rgbToLab(
 							std::span<const float>(r_values.data(), validCount),
 							std::span<const float>(g_values.data(), validCount),
@@ -367,7 +350,6 @@ ColourMapper::ColourResult ColourMapper::frequenciesToColour(
 							validCount
 						);
 						
-						// Weighted blending
 						for (size_t i = 0; i < validCount; ++i) {
 							L_blend += L_values[i] * normalizedWeights[i];
 							a_blend += a_values[i] * normalizedWeights[i];
@@ -376,7 +358,6 @@ ColourMapper::ColourResult ColourMapper::frequenciesToColour(
 					} else
 #endif
 					{
-						// Fallback to scalar implementation
 						for (size_t i = 0; i < validCount; ++i) {
 							float wavelength = logFrequencyToWavelength(validFrequencies[i]);
 
@@ -409,7 +390,6 @@ ColourMapper::ColourResult ColourMapper::frequenciesToColour(
 	ColourResult envelopeResult{0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f};
 	bool hasEnvelopeColour = false;
 	
-	// Calculate spectral characteristics once for reuse (if needed)
 	SpectralCharacteristics spectralStats{SPECTRAL_FLATNESS_WEIGHT, 0.0f, 0.0f, 0.0f};
 	if (hasEnvelope) {
 		spectralStats = calculateSpectralCharacteristics(spectralEnvelope, sampleRate);
@@ -428,8 +408,8 @@ ColourMapper::ColourResult ColourMapper::frequenciesToColour(
 		float dominantEnvelopeFreq = 0.0f;
 
 		for (size_t i = 0; i < binCount; ++i) {
-			float freq;
-			freq = static_cast<float>(i) * sampleRate / (2.0f * (binCount - 1));
+			float freq = binCount <= 1 ? 0.0f : 
+				static_cast<float>(i) * sampleRate / (2.0f * (binCount - 1));
 
 			if (freq < MIN_FREQ || freq > MAX_FREQ || !std::isfinite(freq)) {
 				continue;
@@ -480,7 +460,6 @@ ColourMapper::ColourResult ColourMapper::frequenciesToColour(
 				float L, a, b_comp;
 				RGBtoLab(r, g, b, L, a, b_comp);
 
-				// Enhance saturation based on spectral characteristics
 				float saturationFactor =
 					(1.0f - spectralFlatness) * (1.0f - 0.5f * normalisedSpread);
 				float saturationBoost = 1.0f + saturationFactor;
@@ -488,18 +467,15 @@ ColourMapper::ColourResult ColourMapper::frequenciesToColour(
 				a *= saturationBoost;
 				b_comp *= saturationBoost;
 
-				// Adjust brightness based on spectral characteristics
 				float centroidFactor = std::clamp(
 					std::log2(spectralCentroid / MIN_FREQ) / std::log2(MAX_FREQ / MIN_FREQ), 0.0f,
 					1.0f);
 
-				// Spread also affects the brightness curve
 				float contrastBoost = 1.0f + normalisedSpread * 0.5f;
 				float brightnessAdjust = centroidFactor * contrastBoost;
 
 				L = std::lerp(L, std::min(L * 1.2f, 100.0f), brightnessAdjust);
 
-				// Weighted contribution to final colour
 				L_envelope += L * weight;
 				a_envelope += a * weight;
 				b_envelope += b_comp * weight;

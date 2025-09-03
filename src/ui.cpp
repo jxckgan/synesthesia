@@ -91,22 +91,18 @@ void updateUI(AudioInput& audioInput, const std::vector<AudioInput::DeviceInfo>&
 
 		if (newValid) {
 			if (state.smoothingEnabled) {
-				// Apply smoothing
 				colourSmoother.setTargetColour(colourResult.r, colourResult.g, colourResult.b);
 				colourSmoother.update(deltaTime * UIConstants::COLOUR_SMOOTH_UPDATE_FACTOR);
 				colourSmoother.getCurrentColour(clear_color[0], clear_color[1], clear_color[2]);
 			} else {
-				// No smoothing - use raw colors directly
 				clear_color[0] = colourResult.r;
 				clear_color[1] = colourResult.g;
 				clear_color[2] = colourResult.b;
 			}
 		}
 
-		// Apply EQ gains first so they affect frequency peak detection
 		audioInput.getFFTProcessor().setEQGains(state.lowGain, state.midGain, state.highGain);
 		
-		// Get EQ-processed frequency peaks for API (after EQ is applied)
 		auto eqPeaks = audioInput.getFrequencyPeaks();
 		std::vector<float> eqFreqs, eqMags;
 		eqFreqs.reserve(eqPeaks.size());
@@ -116,12 +112,11 @@ void updateUI(AudioInput& audioInput, const std::vector<AudioInput::DeviceInfo>&
 			eqMags.push_back(peak.magnitude);
 		}
 		
-		// Update API with final colour data (post-smoothing and post-EQ)
 #ifdef ENABLE_API_SERVER
 		auto& api = Synesthesia::SynesthesiaAPIIntegration::getInstance();
 		api.updateFinalColour(clear_color[0], clear_color[1], clear_color[2],
 		                     eqFreqs, eqMags, static_cast<uint32_t>(UIConstants::DEFAULT_SAMPLE_RATE), 
-		                     1024); // Default FFT size
+		                     1024);
 #endif
 
 		const auto& magnitudes = audioInput.getFFTProcessor().getMagnitudesBuffer();
@@ -148,7 +143,6 @@ void updateUI(AudioInput& audioInput, const std::vector<AudioInput::DeviceInfo>&
 
 		ImVec2 displaySize = io.DisplaySize;
 
-		// Position sidebar based on user preference
 		float sidebarX = state.sidebarOnLeft ? 0 : (displaySize.x - SIDEBAR_WIDTH);
 		ImGui::SetNextWindowPos(ImVec2(sidebarX, 0));
 		ImGui::SetNextWindowSize(ImVec2(SIDEBAR_WIDTH, displaySize.y));
@@ -203,7 +197,6 @@ void updateUI(AudioInput& audioInput, const std::vector<AudioInput::DeviceInfo>&
 			Controls::renderAdvancedSettingsPanel(state);
 		}
 
-		// Calculate if we need spacing to push bottom text down, but allow natural scrolling
 		float bottomTextHeight = ImGui::GetTextLineHeightWithSpacing() + 12;
 		float currentCursorY = ImGui::GetCursorPosY();
 		if (float spaceToBottom = ImGui::GetWindowHeight() - currentCursorY - bottomTextHeight -

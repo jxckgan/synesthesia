@@ -132,12 +132,11 @@ int AudioInput::audioCallback(const void* input, void* output, const unsigned lo
 			processedBuffer.resize(frameCount);
 		}
 
-		int activeChannel = audio->activeChannel;
+		int activeChannel = audio->activeChannel.load();
 		const int channelCount = audio->channelCount;
 
 		if (activeChannel >= channelCount) {
 			activeChannel = 0;
-			audio->activeChannel = 0;
 		}
 
 		for (unsigned long i = 0; i < frameCount; ++i) {
