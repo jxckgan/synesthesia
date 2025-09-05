@@ -22,10 +22,6 @@ struct UIState {
     DeviceState deviceState;
 
     float colourSmoothingSpeed = 0.3f;
-    bool dynamicGammaEnabled = false;
-    float previousLoudness = 0.0f;
-    float transientIntensity = 0.0f;
-    float smoothedLoudness = 0.0f;
 
     float lowGain = 1.0f;
     float midGain = 1.0f;

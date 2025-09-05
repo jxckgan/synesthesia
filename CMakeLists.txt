@@ -149,13 +149,13 @@ if(ENABLE_API_SERVER)
     message(STATUS "Added API server sources to build")
 endif()
 
-# Add NEON-optimized sources for ARM64 platforms
+# Add NEON-optimised sources for ARM64 platforms
 if(NEON_AVAILABLE AND ENABLE_NEON_OPTIMIZATIONS)
     list(APPEND SOURCES
         ${SRC_DIR}/fft/fft_processor_neon.cpp
         ${SRC_DIR}/colour/colour_mapper_neon.cpp
     )
-    message(STATUS "Added NEON-optimized source files to build")
+    message(STATUS "Added NEON-optimised source files to build")
 endif()
 
 # Platform-specific source additions
@@ -257,7 +257,7 @@ elseif(APPLE)
     # Add NEON-specific optimizations for ARM64
     if(NEON_AVAILABLE AND ENABLE_NEON_OPTIMIZATIONS)
         target_compile_options(${EXECUTABLE_NAME} PRIVATE
-            "-mcpu=apple-m1"  # Optimize for Apple Silicon
+            "-mcpu=apple-m1"  # Optimise for Apple Silicon
             "-mtune=apple-m1"
         )
         
