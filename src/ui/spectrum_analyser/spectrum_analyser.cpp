@@ -4,6 +4,12 @@
 #include <algorithm>
 #include <cmath>
 
+std::vector<float> SpectrumAnalyser::previousFrameData;
+std::vector<float> SpectrumAnalyser::smoothingBuffer1;
+std::vector<float> SpectrumAnalyser::smoothingBuffer2;
+std::vector<float> SpectrumAnalyser::gaussianWeights;
+bool SpectrumAnalyser::buffersInitialized = false;
+
 void SpectrumAnalyser::drawSpectrumWindow(
     const std::vector<float>& smoothedMagnitudes,
     const std::vector<AudioInput::DeviceInfo>& devices,
@@ -31,6 +37,7 @@ void SpectrumAnalyser::drawSpectrumWindow(
     float sampleRate = getSampleRate(devices, selectedDeviceIndex);
     
     prepareSpectrumData(xData, yData, smoothedMagnitudes, sampleRate);
+    applyTemporalSmoothing(yData);
     smoothData(yData);
 
     ImPlot::PushStyleVar(ImPlotStyleVar_PlotPadding, ImVec2(0, 0));
@@ -112,7 +119,13 @@ void SpectrumAnalyser::prepareSpectrumData(std::vector<float>& xData, std::vecto
                                static_cast<int>(magnitudes.size()) - 1);
             int idx1 = std::min(idx0 + 1, static_cast<int>(magnitudes.size()) - 1);
 
-            float magnitude = magnitudes[idx0] * (1.0f - t) + magnitudes[idx1] * t;
+            // Use cubic interpolation for smoother curves between FFT bins
+            int idx_m1 = std::max(idx0 - 1, 0);
+            int idx2 = std::min(idx1 + 1, static_cast<int>(magnitudes.size()) - 1);
+            
+            float magnitude = cubicInterpolate(
+                magnitudes[idx_m1], magnitudes[idx0], 
+                magnitudes[idx1], magnitudes[idx2], t);
             
             float normalizedMagnitude = magnitude;
             
@@ -132,21 +145,168 @@ void SpectrumAnalyser::prepareSpectrumData(std::vector<float>& xData, std::vecto
     }
 }
 
-void SpectrumAnalyser::smoothData(std::vector<float>& yData) {
-    std::vector<float> smoothedData(LINE_COUNT);
+void SpectrumAnalyser::applyTemporalSmoothing(std::vector<float>& yData) {
+    if (previousFrameData.size() != static_cast<size_t>(LINE_COUNT)) {
+        previousFrameData.resize(LINE_COUNT, 0.0f);
+    }
+    
     for (int i = 0; i < LINE_COUNT; ++i) {
-        constexpr int smoothingWindow = SMOOTHING_WINDOW_SIZE;
-        float sum = 0.0f;
-        int count = 0;
-        int halfWindow = smoothingWindow / 2;
+        yData[i] = TEMPORAL_SMOOTHING_FACTOR * previousFrameData[i] + 
+                   (1.0f - TEMPORAL_SMOOTHING_FACTOR) * yData[i];
+        previousFrameData[i] = yData[i];
+    }
+}
+
+void SpectrumAnalyser::smoothData(std::vector<float>& yData) {
+    if (!buffersInitialized) {
+        initializeBuffers();
+    }
+    
+    // First pass: adaptive smoothing based on local variance
+    applyAdaptiveSmoothing(yData);
+    
+    // Second pass: light Gaussian smoothing for final polish
+    applyGaussianSmoothing(yData);
+}
+
+void SpectrumAnalyser::applyGaussianSmoothing(std::vector<float>& yData) {
+    // Reuse pre-allocated buffer instead of creating new vector
+    std::fill(smoothingBuffer1.begin(), smoothingBuffer1.end(), 0.0f);
+    
+    for (int i = 0; i < LINE_COUNT; ++i) {
+        int windowSize = getFrequencyDependentWindowSize(i);
+        int halfWindow = windowSize / 2;
+        
+        float weightedSum = 0.0f;
+        float totalWeight = 0.0f;
         
         for (int j = std::max(0, i - halfWindow);
              j <= std::min(LINE_COUNT - 1, i + halfWindow); ++j) {
-            sum += yData[j];
-            count++;
+            // Lighter smoothing - reduced sigma for maintaining definition
+            float weight = gaussianWeight(std::abs(i - j), GAUSSIAN_SIGMA * 0.7f);
+            weightedSum += yData[j] * weight;
+            totalWeight += weight;
         }
-        smoothedData[i] = count > 0 ? sum / count : yData[i];
+        
+        smoothingBuffer1[i] = totalWeight > 0.0f ? weightedSum / totalWeight : yData[i];
     }
     
-    yData = std::move(smoothedData);
+    // Swap data back to yData (no allocation)
+    yData.swap(smoothingBuffer1);
+}
+
+int SpectrumAnalyser::getFrequencyDependentWindowSize(int index) {
+    float normalizedIndex = static_cast<float>(index) / (LINE_COUNT - 1);
+    // Smaller base window for better definition, with more moderate scaling
+    return BASE_SMOOTHING_WINDOW_SIZE + static_cast<int>(normalizedIndex * 3.0f);
+}
+
+float SpectrumAnalyser::gaussianWeight(int distance, float sigma) {
+    if (distance == 0) return 1.0f;
+    
+    // Use precomputed weights for standard sigma, compute for others
+    if (std::abs(sigma - GAUSSIAN_SIGMA) < 0.01f && distance < static_cast<int>(gaussianWeights.size())) {
+        return gaussianWeights[distance];
+    }
+    
+    // Fallback to computation for non-standard sigma values
+    float d = static_cast<float>(distance);
+    return std::exp(-(d * d) / (2.0f * sigma * sigma));
+}
+
+float SpectrumAnalyser::cubicInterpolate(float y0, float y1, float y2, float y3, float t) {
+    // Catmull-Rom cubic interpolation for smooth curves
+    float a0, a1, a2, a3;
+    a0 = -0.5f * y0 + 1.5f * y1 - 1.5f * y2 + 0.5f * y3;
+    a1 = y0 - 2.5f * y1 + 2.0f * y2 - 0.5f * y3;
+    a2 = -0.5f * y0 + 0.5f * y2;
+    a3 = y1;
+    
+    return a0 * t * t * t + a1 * t * t + a2 * t + a3;
+}
+
+void SpectrumAnalyser::applyAdaptiveSmoothing(std::vector<float>& yData) {
+    // Reuse pre-allocated buffer instead of creating new vector
+    std::fill(smoothingBuffer2.begin(), smoothingBuffer2.end(), 0.0f);
+    
+    for (int i = 0; i < LINE_COUNT; ++i) {
+        int baseWindowSize = getFrequencyDependentWindowSize(i);
+        
+        // Calculate local variance to determine smoothing intensity
+        float variance = calculateLocalVariance(yData, i, baseWindowSize);
+        
+        // Adaptive smoothing: more smoothing in low-variance (flat) areas,
+        // less smoothing in high-variance (peak) areas
+        float adaptiveFactor = ADAPTIVE_SMOOTHING_MIN + 
+            (ADAPTIVE_SMOOTHING_MAX - ADAPTIVE_SMOOTHING_MIN) * (1.0f - std::min(variance * 10.0f, 1.0f));
+        
+        int windowSize = static_cast<int>(baseWindowSize * adaptiveFactor);
+        int halfWindow = windowSize / 2;
+        
+        float weightedSum = 0.0f;
+        float totalWeight = 0.0f;
+        
+        for (int j = std::max(0, i - halfWindow);
+             j <= std::min(LINE_COUNT - 1, i + halfWindow); ++j) {
+            
+            // Use a combination of Gaussian and distance-based weighting
+            int distance = std::abs(i - j);
+            float gaussWeight = gaussianWeight(distance, GAUSSIAN_SIGMA * 0.8f);
+            
+            // Reduce weight for distant points more aggressively
+            float distanceSq = static_cast<float>(distance * distance);
+            float distanceWeight = 1.0f / (1.0f + distanceSq * 0.1f);
+            float weight = gaussWeight * distanceWeight;
+            
+            weightedSum += yData[j] * weight;
+            totalWeight += weight;
+        }
+        
+        smoothingBuffer2[i] = totalWeight > 0.0f ? weightedSum / totalWeight : yData[i];
+    }
+    
+    // Swap data back to yData (no allocation)
+    yData.swap(smoothingBuffer2);
+}
+
+float SpectrumAnalyser::calculateLocalVariance(const std::vector<float>& yData, int center, int windowSize) {
+    int halfWindow = windowSize / 2;
+    float sum = 0.0f;
+    float sumSquares = 0.0f;
+    int count = 0;
+    
+    for (int j = std::max(0, center - halfWindow);
+         j <= std::min(LINE_COUNT - 1, center + halfWindow); ++j) {
+        sum += yData[j];
+        sumSquares += yData[j] * yData[j];
+        count++;
+    }
+    
+    if (count <= 1) return 0.0f;
+    
+    float mean = sum / count;
+    float variance = (sumSquares / count) - (mean * mean);
+    return std::max(variance, 0.0f);
+}
+
+void SpectrumAnalyser::initializeBuffers() {
+    smoothingBuffer1.resize(LINE_COUNT);
+    smoothingBuffer2.resize(LINE_COUNT);
+    precomputeGaussianWeights();
+    buffersInitialized = true;
+}
+
+void SpectrumAnalyser::precomputeGaussianWeights() {
+    // Pre-compute Gaussian weights up to a reasonable distance
+    constexpr int maxDistance = 20;
+    gaussianWeights.resize(maxDistance + 1);
+    
+    for (int d = 0; d <= maxDistance; ++d) {
+        if (d == 0) {
+            gaussianWeights[d] = 1.0f;
+        } else {
+            float distance = static_cast<float>(d);
+            gaussianWeights[d] = std::exp(-(distance * distance) / (2.0f * GAUSSIAN_SIGMA * GAUSSIAN_SIGMA));
+        }
+    }
 }
