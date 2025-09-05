@@ -12,6 +12,8 @@
 #include <dxgi1_4.h>
 #include <tchar.h>
 #include <dwmapi.h>
+#include <chrono>
+#include <thread>
 
 #ifdef _DEBUG
 #define DX12_ENABLE_DEBUG_LAYER
@@ -180,9 +182,13 @@ int main(int, char**)
 
     UIState uiState;
 
+    // Frame rate limiting: 120 FPS = ~8.33ms per frame
+    constexpr auto target_frame_duration = std::chrono::microseconds(8333);
+
     bool done = false;
     while (!done)
     {
+        auto frame_start = std::chrono::steady_clock::now();
         MSG msg;
         while (::PeekMessage(&msg, nullptr, 0U, 0U, PM_REMOVE))
         {
@@ -242,6 +248,13 @@ int main(int, char**)
         g_pd3dCommandQueue->Signal(g_fence, fenceValue);
         g_fenceLastSignaledValue = fenceValue;
         frameCtx->FenceValue = fenceValue;
+
+        // Frame rate limiting
+        auto frame_end = std::chrono::steady_clock::now();
+        auto frame_duration = frame_end - frame_start;
+        if (frame_duration < target_frame_duration) {
+            std::this_thread::sleep_for(target_frame_duration - frame_duration);
+        }
     }
 
     WaitForLastSubmittedFrame();

@@ -17,6 +17,8 @@
 #import <QuartzCore/QuartzCore.h>
 
 #include <cstdio>
+#include <chrono>
+#include <thread>
 
 static void glfw_error_callback(int error, const char* description) {
     fprintf(stderr, "Glfw Error %d: %s\n", error, description);
@@ -62,7 +64,11 @@ int main(int, char**) {
 
     UIState uiState;
 
+    // Frame rate limiting: 120 FPS = ~8.33ms per frame
+    constexpr auto target_frame_duration = std::chrono::microseconds(8333);
+
     while (!glfwWindowShouldClose(window)) {
+        auto frame_start = std::chrono::steady_clock::now();
         @autoreleasepool {
             glfwPollEvents();
 
@@ -99,6 +105,13 @@ int main(int, char**) {
             [renderEncoder endEncoding];
             [commandBuffer presentDrawable:drawable];
             [commandBuffer commit];
+        }
+
+        // Frame rate limiting
+        auto frame_end = std::chrono::steady_clock::now();
+        auto frame_duration = frame_end - frame_start;
+        if (frame_duration < target_frame_duration) {
+            std::this_thread::sleep_for(target_frame_duration - frame_duration);
         }
     }
 

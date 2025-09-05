@@ -60,6 +60,11 @@ void updateUI(AudioInput& audioInput, const std::vector<AudioInput::DeviceInfo>&
 	if (state.deviceState.selectedDeviceIndex >= 0) {
 		float whiteMix = 0.0f;
 		float gamma = 0.8f;
+		
+		// Set EQ gains before getting peaks to ensure they're applied
+		audioInput.getFFTProcessor().setEQGains(state.lowGain, state.midGain, state.highGain);
+		
+		// Get peaks only once per frame
 		auto peaks = audioInput.getFrequencyPeaks();
 		std::vector<float> freqs, mags;
 		freqs.reserve(peaks.size());
@@ -100,22 +105,11 @@ void updateUI(AudioInput& audioInput, const std::vector<AudioInput::DeviceInfo>&
 				clear_color[2] = colourResult.b;
 			}
 		}
-
-		audioInput.getFFTProcessor().setEQGains(state.lowGain, state.midGain, state.highGain);
-		
-		auto eqPeaks = audioInput.getFrequencyPeaks();
-		std::vector<float> eqFreqs, eqMags;
-		eqFreqs.reserve(eqPeaks.size());
-		eqMags.reserve(eqPeaks.size());
-		for (const auto& peak : eqPeaks) {
-			eqFreqs.push_back(peak.frequency);
-			eqMags.push_back(peak.magnitude);
-		}
 		
 #ifdef ENABLE_API_SERVER
 		auto& api = Synesthesia::SynesthesiaAPIIntegration::getInstance();
 		api.updateFinalColour(clear_color[0], clear_color[1], clear_color[2],
-		                     eqFreqs, eqMags, static_cast<uint32_t>(UIConstants::DEFAULT_SAMPLE_RATE), 
+		                     freqs, mags, static_cast<uint32_t>(UIConstants::DEFAULT_SAMPLE_RATE), 
 		                     1024);
 #endif
 

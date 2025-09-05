@@ -121,8 +121,9 @@ void APIServer::updatePerformanceMetrics(float frame_time) {
     
     recent_frame_times_.push_back(frame_time);
     
+    // Use efficient batch erase instead of expensive single element erase from front
     if (recent_frame_times_.size() > 300) {
-        recent_frame_times_.erase(recent_frame_times_.begin());
+        recent_frame_times_.erase(recent_frame_times_.begin(), recent_frame_times_.begin() + 50);
     }
     if (!recent_frame_times_.empty()) {
         float sum = 0.0f;
@@ -336,13 +337,8 @@ void APIServer::workerLoop() {
         auto sleep_time = target_frame_duration - processing_time;
         
         if (sleep_time > std::chrono::microseconds(0)) {
-            if (has_clients && current_target_fps > 120 && sleep_time < std::chrono::microseconds(1000)) {
-                while (std::chrono::steady_clock::now() - frame_start < target_frame_duration) {
-                    std::this_thread::yield();
-                }
-            } else {
-                std::this_thread::sleep_for(sleep_time);
-            }
+            // Always use sleep_for to avoid CPU busy-wait
+            std::this_thread::sleep_for(sleep_time);
         }
         
         if (frame_end - last_performance_log_ >= std::chrono::seconds(10)) {
