@@ -108,7 +108,7 @@ void WaitForLastSubmittedFrame();
 FrameContext* WaitForNextFrameResources();
 LRESULT WINAPI WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
 
-int main(int, char**)
+int app_main(int, char**)
 {
     WNDCLASSEXW wc = { 
         sizeof(wc), 

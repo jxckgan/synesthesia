@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.13)
 
 set(SYNESTHESIA_VERSION_MAJOR 2025)
 set(SYNESTHESIA_VERSION_MINOR 09)
-set(SYNESTHESIA_VERSION_PATCH 03)
+set(SYNESTHESIA_VERSION_PATCH 06)
 set(SYNESTHESIA_VERSION "${SYNESTHESIA_VERSION_MAJOR}.${SYNESTHESIA_VERSION_MINOR}.${SYNESTHESIA_VERSION_PATCH}")
 
 project(Synesthesia VERSION ${SYNESTHESIA_VERSION})
@@ -115,6 +115,7 @@ endif()
 
 # Collect source files
 set(SOURCES
+    ${SRC_DIR}/main.cpp
     ${SRC_DIR}/zero_crossing/zero_crossing.cpp
     ${SRC_DIR}/audio/audio_input.cpp
     ${SRC_DIR}/audio/audio_processor.cpp
@@ -147,6 +148,15 @@ if(ENABLE_API_SERVER)
         ${SRC_DIR}/api/synesthesia_api_integration.cpp
     )
     message(STATUS "Added API server sources to build")
+endif()
+
+# Add CLI sources only for macOS
+if(APPLE)
+    list(APPEND SOURCES
+        ${SRC_DIR}/cli/cli.cpp
+        ${SRC_DIR}/cli/headless.cpp
+    )
+    message(STATUS "Added CLI sources to build for macOS")
 endif()
 
 # Add NEON-optimised sources for ARM64 platforms
@@ -208,6 +218,7 @@ target_include_directories(${EXECUTABLE_NAME} PRIVATE
     ${SRC_DIR}/ui/styling
     ${SRC_DIR}/ui/spectrum_analyser
     ${SRC_DIR}/zero_crossing
+    ${SRC_DIR}/cli
     ${CMAKE_BINARY_DIR}
     /usr/local/include
     /opt/homebrew/include

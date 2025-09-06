@@ -34,12 +34,20 @@ struct UpdateChecker::Impl {
     std::string latestVersionFound;
     std::string downloadUrlFound;
     bool updateFoundFlag = false;
+
+    std::thread updateThread;
+    std::mutex threadMutex;
 };
 
 UpdateChecker::UpdateChecker() : pImpl(std::make_unique<Impl>()) {}
 UpdateChecker::~UpdateChecker() {
     if (pImpl) {
         pImpl->shutdownRequested = true;
+        
+        std::lock_guard<std::mutex> lock(pImpl->threadMutex);
+        if (pImpl->updateThread.joinable()) {
+            pImpl->updateThread.join();
+        }
     }
 }
 
@@ -120,35 +128,42 @@ void UpdateChecker::checkForUpdates(const std::string& repoOwner, const std::str
     std::string apiUrl = "https://api.github.com/repos/" + repoOwner + "/" + repoName + "/releases/latest";
     
     auto implPtr = pImpl.get();
-    std::thread([implPtr, apiUrl, this]() {
-        if (implPtr->shutdownRequested) return;
+    {
+        std::lock_guard<std::mutex> lock(implPtr->threadMutex);
+        if (implPtr->updateThread.joinable()) {
+            implPtr->updateThread.join();
+        }
         
-        performHttpRequest(apiUrl, [implPtr](const std::string& response) {
+        implPtr->updateThread = std::thread([implPtr, apiUrl, this]() {
             if (implPtr->shutdownRequested) return;
             
-            std::lock_guard<std::mutex> lock(implPtr->dataMutex);
-            
-            if (implPtr->shutdownRequested) return;
-            
-            try {
-                auto json = nlohmann::json::parse(response);
+            performHttpRequest(apiUrl, [implPtr](const std::string& response) {
+                if (implPtr->shutdownRequested) return;
                 
-                if (json.contains("tag_name") && json.contains("html_url")) {
-                    std::string latestVersion = json["tag_name"];
-                    std::string htmlUrl = json["html_url"];
+                std::lock_guard<std::mutex> lock(implPtr->dataMutex);
+                
+                if (implPtr->shutdownRequested) return;
+                
+                try {
+                    auto json = nlohmann::json::parse(response);
                     
-                    implPtr->latestVersionFound = latestVersion;
-                    implPtr->downloadUrlFound = htmlUrl;
-                    implPtr->updateFoundFlag = true;
+                    if (json.contains("tag_name") && json.contains("html_url")) {
+                        std::string latestVersion = json["tag_name"];
+                        std::string htmlUrl = json["html_url"];
+                        
+                        implPtr->latestVersionFound = latestVersion;
+                        implPtr->downloadUrlFound = htmlUrl;
+                        implPtr->updateFoundFlag = true;
+                    }
+                } catch (const std::exception& e) {
+                    implPtr->updateFoundFlag = false;
                 }
-            } catch (const std::exception& e) {
-                implPtr->updateFoundFlag = false;
-            }
-            
-            implPtr->updateCheckComplete = true;
-            implPtr->requestInProgress = false;
+                
+                implPtr->updateCheckComplete = true;
+                implPtr->requestInProgress = false;
+            });
         });
-    }).detach();
+    }
 }
 
 std::string executeCommand(const char* cmd) {
