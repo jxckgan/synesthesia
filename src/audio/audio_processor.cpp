@@ -87,12 +87,12 @@ void AudioProcessor::processBuffer(const AudioBuffer& buffer) {
 							   buffer.sampleRate);
 	zeroCrossingDetector.processSamples(buffer.data.data(), buffer.sampleCount);
 
-	std::vector<FFTProcessor::FrequencyPeak> peaks = fftProcessor.getDominantFrequencies();
+	tempPeaks = fftProcessor.getDominantFrequencies();
 
 	if (const float zcFreq = zeroCrossingDetector.getEstimatedFrequency();
 		zcFreq > 20.0f && zcFreq < 20000.0f) {
 		bool foundMatch = false;
-		for (auto& peak : peaks) {
+		for (auto& peak : tempPeaks) {
 			if (const float freqRatio = peak.frequency / zcFreq;
 				freqRatio > 0.95f && freqRatio < 1.05f) {
 				peak.frequency = zcFreq;
@@ -101,34 +101,38 @@ void AudioProcessor::processBuffer(const AudioBuffer& buffer) {
 			}
 		}
 
-		if (!foundMatch && peaks.size() < FFTProcessor::MAX_PEAKS) {
+		if (!foundMatch && tempPeaks.size() < FFTProcessor::MAX_PEAKS) {
 			const float zcDensity = zeroCrossingDetector.getZeroCrossingDensity();
 			const float estimatedMagnitude = std::min(1.0f, zcDensity / 1000.0f);
 
-			peaks.push_back({zcFreq, estimatedMagnitude});
+			tempPeaks.push_back({zcFreq, estimatedMagnitude});
 
-			std::ranges::sort(peaks, [](const FFTProcessor::FrequencyPeak& a,
+			std::ranges::sort(tempPeaks, [](const FFTProcessor::FrequencyPeak& a,
 										const FFTProcessor::FrequencyPeak& b) {
 				return a.magnitude > b.magnitude;
 			});
 
-			if (peaks.size() > FFTProcessor::MAX_PEAKS) {
-				peaks.resize(FFTProcessor::MAX_PEAKS);
+			if (tempPeaks.size() > FFTProcessor::MAX_PEAKS) {
+				tempPeaks.resize(FFTProcessor::MAX_PEAKS);
 			}
 		}
 	}
 
-	std::vector<float> freqs, mags;
-	for (const auto& peak : peaks) {
-		freqs.push_back(peak.frequency);
-		mags.push_back(peak.magnitude);
+	tempFreqs.clear();
+	tempMags.clear();
+	tempFreqs.reserve(tempPeaks.size());
+	tempMags.reserve(tempPeaks.size());
+	
+	for (const auto& peak : tempPeaks) {
+		tempFreqs.push_back(peak.frequency);
+		tempMags.push_back(peak.magnitude);
 	}
 
 	{
 		std::lock_guard lock(resultsMutex);
-		currentPeaks = peaks;
-		currentColour = ColourMapper::frequenciesToColour(freqs, mags);
-		currentDominantFrequency = !peaks.empty() ? peaks[0].frequency : 0.0f;
+		currentPeaks = std::move(tempPeaks);
+		currentColour = ColourMapper::frequenciesToColour(tempFreqs, tempMags);
+		currentDominantFrequency = !currentPeaks.empty() ? currentPeaks[0].frequency : 0.0f;
 	}
 }
 

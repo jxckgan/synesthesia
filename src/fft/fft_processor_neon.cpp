@@ -70,8 +70,8 @@ void calculateSpectralEnergy(std::span<float> envelope, std::span<const float> r
         float32x4_t imagSq = vmulq_f32(imagVec, imagVec);
         float32x4_t energy = vaddq_f32(realSq, imagSq);
         
-        float32x4_t normalizedEnergy = vmulq_f32(energy, totalEnergyInvVec);
-        vst1q_f32(&envelope[i], normalizedEnergy);
+        float32x4_t normalisedEnergy = vmulq_f32(energy, totalEnergyInvVec);
+        vst1q_f32(&envelope[i], normalisedEnergy);
     }
     
     for (; i < size; ++i) {
@@ -205,7 +205,7 @@ void applyAWeighting(std::span<float> magnitudes, std::span<const float> frequen
         
         float aWeight = numerator / denominator;
         float dbAdjustment = 2.0f * std::log10(aWeight) + 2.0f;
-        float perceptualGain = std::pow(10.0f, dbAdjustment / 20.0f);
+        float perceptualGain = std::exp(dbAdjustment * 0.11512925f); // ln(10)/20 ≈ 0.11512925
         
         magnitudes[i] *= perceptualGain;
     }
@@ -311,6 +311,37 @@ float vectorMax(std::span<const float> data) {
     }
     
     return maxVal;
+}
+
+void calculateMagnitudesFromComplex(std::span<float> magnitudes, 
+                                   const kiss_fft_cpx* fft_output, size_t count) {
+    const size_t size = std::min(magnitudes.size(), count);
+    const size_t vectorSize = size & ~3;
+    size_t i = 0;
+    
+    for (; i < vectorSize; i += 4) {
+        // Load complex values more safely, 2 at a time
+        float32x4_t real_vals = {fft_output[i].r, fft_output[i+1].r, fft_output[i+2].r, fft_output[i+3].r};
+        float32x4_t imag_vals = {fft_output[i].i, fft_output[i+1].i, fft_output[i+2].i, fft_output[i+3].i};
+        
+        float32x4_t realSq = vmulq_f32(real_vals, real_vals);
+        float32x4_t imagSq = vmulq_f32(imag_vals, imag_vals);
+        float32x4_t sum = vaddq_f32(realSq, imagSq);
+        
+        // Use NEON sqrt approximation for better performance
+        float32x4_t sqrtApprox = vrsqrteq_f32(sum);
+        sqrtApprox = vmulq_f32(sqrtApprox, vrsqrtsq_f32(vmulq_f32(sum, sqrtApprox), sqrtApprox));
+        float32x4_t result = vmulq_f32(sum, sqrtApprox);
+        
+        vst1q_f32(&magnitudes[i], result);
+    }
+    
+    // Handle remaining elements
+    for (; i < size; ++i) {
+        const float real = fft_output[i].r;
+        const float imag = fft_output[i].i;
+        magnitudes[i] = std::sqrt(real * real + imag * imag);
+    }
 }
 
 }

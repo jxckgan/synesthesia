@@ -303,13 +303,13 @@ void UpdateChecker::drawUpdateBanner(UpdateState& state, float windowWidth, floa
                  ImGuiWindowFlags_NoCollapse);
     
     float textHeight = ImGui::GetTextLineHeight();
-    float centerY = (state.bannerHeight - textHeight) * 0.5f;
+    float centreY = (state.bannerHeight - textHeight) * 0.5f;
     
-    ImGui::SetCursorPosY(centerY);
+    ImGui::SetCursorPosY(centreY);
     ImGui::Text("There's an update available,");
     ImGui::SameLine();
 
-    ImGui::SetCursorPosY(centerY - (ImGui::GetFrameHeight() - textHeight) * 0.5f);
+    ImGui::SetCursorPosY(centreY - (ImGui::GetFrameHeight() - textHeight) * 0.5f);
     ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.6f, 0.8f, 1.0f, 1.0f));
     if (ImGui::Button("download it?")) {
         openDownloadUrl(state.downloadUrl);
@@ -329,8 +329,8 @@ void UpdateChecker::drawUpdateBanner(UpdateState& state, float windowWidth, floa
     float closeButtonX = bannerWidth - 20 - ImGui::GetStyle().WindowPadding.x;
     ImGui::SetCursorPosX(closeButtonX);
     
-    float buttonCenterY = (state.bannerHeight - 16) * 0.5f;
-    ImGui::SetCursorPosY(buttonCenterY);
+    float buttonCentreY = (state.bannerHeight - 16) * 0.5f;
+    ImGui::SetCursorPosY(buttonCentreY);
     
     ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(0, 0));
     

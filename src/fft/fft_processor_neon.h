@@ -4,6 +4,7 @@
 #include <arm_neon.h>
 #include <span>
 #include <vector>
+#include "kiss_fftr.h"
 
 namespace FFTProcessorNEON {
     void applyHannWindow(std::span<float> output, std::span<const float> input, 
@@ -11,6 +12,10 @@ namespace FFTProcessorNEON {
 
     void calculateMagnitudes(std::span<float> magnitudes, std::span<const float> real, 
                            std::span<const float> imag);
+    
+    // Direct magnitude calculation from FFT complex output
+    void calculateMagnitudesFromComplex(std::span<float> magnitudes, 
+                                       const kiss_fft_cpx* fft_output, size_t count);
     
     void calculateSpectralEnergy(std::span<float> envelope, std::span<const float> real, 
                                 std::span<const float> imag, float totalEnergyInv);

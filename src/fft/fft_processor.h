@@ -46,6 +46,7 @@ private:
 	std::vector<kiss_fft_cpx> fft_out;
 
 	std::vector<FrequencyPeak> currentPeaks;
+	mutable std::vector<FrequencyPeak> candidatePeaksBuffer; // Pre-allocated buffer for hot path
 	mutable std::mutex peaksMutex;
 
 	std::vector<float> hannWindow;

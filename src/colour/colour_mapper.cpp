@@ -178,7 +178,9 @@ ColourMapper::SpectralCharacteristics ColourMapper::calculateSpectralCharacteris
 		return result;
 	}
 
-	std::vector<float> validValues;
+	// Use thread-local static buffer to avoid allocation
+	thread_local static std::vector<float> validValues;
+	validValues.clear();
 	validValues.reserve(spectrum.size());
 
 	float totalWeight = 0.0f;
@@ -301,19 +303,19 @@ ColourMapper::ColourResult ColourMapper::frequenciesToColour(
 				float dominantWavelength = logFrequencyToWavelength(maxFrequency);
 
 				std::vector<float> validFrequencies;
-				std::vector<float> normalizedWeights;
+				std::vector<float> normalisedWeights;
 				std::vector<float> wavelengths;
 				std::vector<float> r_values, g_values, b_values;
 				std::vector<float> L_values, a_values, b_comp_values;
 				
 				validFrequencies.reserve(count);
-				normalizedWeights.reserve(count);
+				normalisedWeights.reserve(count);
 				
 				for (size_t i = 0; i < count; ++i) {
 					if (weights[i] <= 0.0f) continue;
 					
 					validFrequencies.push_back(frequencies[i]);
-					normalizedWeights.push_back(weights[i] / totalWeight);
+					normalisedWeights.push_back(weights[i] / totalWeight);
 				}
 				
 				size_t validCount = validFrequencies.size();
@@ -351,9 +353,9 @@ ColourMapper::ColourResult ColourMapper::frequenciesToColour(
 						);
 						
 						for (size_t i = 0; i < validCount; ++i) {
-							L_blend += L_values[i] * normalizedWeights[i];
-							a_blend += a_values[i] * normalizedWeights[i];
-							b_blend += b_comp_values[i] * normalizedWeights[i];
+							L_blend += L_values[i] * normalisedWeights[i];
+							a_blend += a_values[i] * normalisedWeights[i];
+							b_blend += b_comp_values[i] * normalisedWeights[i];
 						}
 					} else
 #endif
@@ -367,9 +369,9 @@ ColourMapper::ColourResult ColourMapper::frequenciesToColour(
 							float L, a, b_comp;
 							RGBtoLab(r, g, b, L, a, b_comp);
 
-							L_blend += L * normalizedWeights[i];
-							a_blend += a * normalizedWeights[i];
-							b_blend += b_comp * normalizedWeights[i];
+							L_blend += L * normalisedWeights[i];
+							a_blend += a * normalisedWeights[i];
+							b_blend += b_comp * normalisedWeights[i];
 						}
 					}
 				}

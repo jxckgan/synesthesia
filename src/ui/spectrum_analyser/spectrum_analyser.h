@@ -31,6 +31,8 @@ private:
     static std::vector<float> smoothingBuffer1;
     static std::vector<float> smoothingBuffer2;
     static std::vector<float> gaussianWeights;
+    static std::vector<float> cachedFrequencies; // Pre-computed frequency values
+    static float lastCachedSampleRate; // Track sample rate for cache validity
     static bool buffersInitialized;
     
     static float getSampleRate(const std::vector<AudioInput::DeviceInfo>& devices, int selectedDeviceIndex);
@@ -46,7 +48,7 @@ private:
     static float gaussianWeight(int distance, float sigma);
     static void initializeBuffers();
     static void precomputeGaussianWeights();
-    static float calculateLocalVariance(const std::vector<float>& yData, int center, int windowSize);
+    static float calculateLocalVariance(const std::vector<float>& yData, int centre, int windowSize);
 };
 
 #endif

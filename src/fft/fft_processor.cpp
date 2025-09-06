@@ -131,8 +131,7 @@ void FFTProcessor::processMagnitudes(std::vector<float>& magnitudes, const float
 		std::min(static_cast<size_t>(MAX_FREQ * FFT_SIZE / sampleRate) + 1, fft_out.size() - 1);
 	float totalEnergy = 0.0f;
 	for (size_t i = minBinIndex; i <= maxBinIndex; ++i) {
-		const float rawMagnitude = std::hypot(fft_out[i].r, fft_out[i].i);
-		const float energy = rawMagnitude * rawMagnitude;
+		const float energy = fft_out[i].r * fft_out[i].r + fft_out[i].i * fft_out[i].i;
 		spectralEnvelope[i] = energy;
 		totalEnergy += energy;
 	}
@@ -161,7 +160,7 @@ void FFTProcessor::processMagnitudes(std::vector<float>& magnitudes, const float
 		const float freq = static_cast<float>(i) * sampleRate / FFT_SIZE;
 
 		const float normalisedMagnitude =
-			std::hypot(fft_out[i].r, fft_out[i].i) * normalisationFactor;
+			std::sqrt(fft_out[i].r * fft_out[i].r + fft_out[i].i * fft_out[i].i) * normalisationFactor;
 
 		const float lowResponse =
 			std::clamp(1.0f - std::max(0.0f, (freq - 200.0f) / 50.0f), 0.0f, 1.0f);
@@ -176,7 +175,7 @@ void FFTProcessor::processMagnitudes(std::vector<float>& magnitudes, const float
 
 		const float aWeight = numerator / denominator;
 		const float dbAdjustment = 2.0f * std::log10(aWeight) + 2.0f;
-		const float perceptualGain = std::pow(10.0f, dbAdjustment / 20.0f);
+		const float perceptualGain = std::exp(dbAdjustment * 0.11512925f); // ln(10)/20 ≈ 0.11512925
 
 		float combinedGain =
 			perceptualGain * (lowResponse * currentLowGain + midResponse * currentMidGain +
@@ -193,25 +192,15 @@ void FFTProcessor::calculateMagnitudes(std::vector<float>& rawMagnitudes, const 
 	totalEnergy = 0.0f;
 
 #ifdef USE_NEON_OPTIMIZATIONS
-	if (FFTProcessorNEON::isNEONAvailable() && fft_out.size() >= 8) {
-		std::vector<float> real_parts(fft_out.size());
-		std::vector<float> imag_parts(fft_out.size());
-		std::vector<float> frequencies(fft_out.size());
-		
-		for (size_t i = 0; i < fft_out.size(); ++i) {
-			real_parts[i] = fft_out[i].r;
-			imag_parts[i] = fft_out[i].i;
-			frequencies[i] = static_cast<float>(i) * sampleRate / FFT_SIZE;
-		}
-		
-		FFTProcessorNEON::calculateMagnitudes(
+	if (FFTProcessorNEON::isNEONAvailable() && fft_out.size() >= 4) {
+		// Use optimized SIMD function directly on FFT output
+		FFTProcessorNEON::calculateMagnitudesFromComplex(
 			std::span<float>(rawMagnitudes.data(), rawMagnitudes.size()),
-			std::span<const float>(real_parts.data(), real_parts.size()),
-			std::span<const float>(imag_parts.data(), imag_parts.size())
-		);
+			fft_out.data(), fft_out.size());
 		
 		for (size_t i = 1; i < fft_out.size() - 1; ++i) {
-			if (frequencies[i] < MIN_FREQ || frequencies[i] > MAX_FREQ) {
+			const float freq = static_cast<float>(i) * sampleRate / FFT_SIZE;
+			if (freq < MIN_FREQ || freq > MAX_FREQ) {
 				rawMagnitudes[i] = 0.0f;
 				continue;
 			}
@@ -227,9 +216,10 @@ void FFTProcessor::calculateMagnitudes(std::vector<float>& rawMagnitudes, const 
 				freq < MIN_FREQ || freq > MAX_FREQ)
 				continue;
 
-			float magnitude = std::hypot(fft_out[i].r, fft_out[i].i);
+			const float magnitudeSquared = fft_out[i].r * fft_out[i].r + fft_out[i].i * fft_out[i].i;
+			const float magnitude = std::sqrt(magnitudeSquared);
 			rawMagnitudes[i] = magnitude;
-			totalEnergy += magnitude * magnitude;
+			totalEnergy += magnitudeSquared;
 			maxMagnitude = std::max(maxMagnitude, magnitude);
 		}
 	}
@@ -237,7 +227,7 @@ void FFTProcessor::calculateMagnitudes(std::vector<float>& rawMagnitudes, const 
 
 void FFTProcessor::findPeaks(const float sampleRate, const float noiseFloor,
 							 std::vector<FrequencyPeak>& peaks) const {
-	std::vector<FrequencyPeak> candidatePeaks;
+	candidatePeaksBuffer.clear();
 	for (size_t i = 2; i < magnitudesBuffer.size() - 2; ++i) {
 		if (magnitudesBuffer[i] > noiseFloor && magnitudesBuffer[i] > magnitudesBuffer[i - 1] &&
 			magnitudesBuffer[i] > magnitudesBuffer[i - 2] &&
@@ -245,19 +235,19 @@ void FFTProcessor::findPeaks(const float sampleRate, const float noiseFloor,
 			magnitudesBuffer[i] > magnitudesBuffer[i + 2]) {
 			if (const float freq = interpolateFrequency(static_cast<int>(i), sampleRate);
 				freq >= MIN_FREQ && freq <= MAX_FREQ) {
-				candidatePeaks.push_back({freq, magnitudesBuffer[i]});
+				candidatePeaksBuffer.push_back({freq, magnitudesBuffer[i]});
 			}
 		}
 	}
 
-	std::ranges::sort(candidatePeaks, [](const FrequencyPeak& a, const FrequencyPeak& b) {
+	std::ranges::sort(candidatePeaksBuffer, [](const FrequencyPeak& a, const FrequencyPeak& b) {
 		return a.magnitude > b.magnitude;
 	});
 
 	const float spectralFlatness = calculateSpectralFlatness(magnitudesBuffer);
 	const float harmonic_threshold = spectralFlatness < 0.2f ? 0.15f : 0.5f;
 
-	for (const auto& candidate : candidatePeaks) {
+	for (const auto& candidate : candidatePeaksBuffer) {
 		if (peaks.size() >= MAX_PEAKS)
 			break;
 
@@ -298,12 +288,6 @@ float FFTProcessor::calculateSpectralFlatness(const std::vector<float>& magnitud
 }
 
 void FFTProcessor::findFrequencyPeaks(const float sampleRate) {
-	{
-		std::lock_guard lock(peaksMutex);
-		std::ranges::fill(magnitudesBuffer, 0.0f);
-		currentPeaks.clear();
-	}
-
 	const size_t binCount = fft_out.size();
 	std::vector rawMagnitudes(binCount, 0.0f);
 	float maxMagnitude = 0.0f;
@@ -311,22 +295,29 @@ void FFTProcessor::findFrequencyPeaks(const float sampleRate) {
 
 	calculateMagnitudes(rawMagnitudes, sampleRate, maxMagnitude, totalEnergy);
 
-	{
-		const float rmsValue = std::sqrt(totalEnergy / static_cast<float>(binCount));
-		const float dbFS = 20.0f * std::log10(std::max(rmsValue, 1e-6f));
-		const float normalisedLoudness = std::clamp((dbFS + 60.0f) / 60.0f, 0.0f, 1.0f);
-		std::lock_guard lock(peaksMutex);
-		currentLoudness = currentLoudness * 0.7f + normalisedLoudness * 0.3f;
-	}
+	// Calculate loudness without locking first  
+	const float rmsValue = std::sqrt(totalEnergy / static_cast<float>(binCount));
+	const float dbFS = 20.0f * std::log10(std::max(rmsValue, 1e-6f));
+	const float normalisedLoudness = std::clamp((dbFS + 60.0f) / 60.0f, 0.0f, 1.0f);
 
-	processMagnitudes(magnitudesBuffer, sampleRate, maxMagnitude);
+	// Update magnitudes buffer under lock (read by UI thread)
+	{
+		std::lock_guard lock(peaksMutex);
+		std::ranges::fill(magnitudesBuffer, 0.0f);
+		processMagnitudes(magnitudesBuffer, sampleRate, maxMagnitude);
+	}
 
 	const float noiseFloor = calculateNoiseFloor(magnitudesBuffer);
 	std::vector<FrequencyPeak> rawPeaks;
 	findPeaks(sampleRate, noiseFloor, rawPeaks);
 
+	// Single atomic update of all shared state
 	std::lock_guard lock(peaksMutex);
-
+	
+	// Update loudness
+	currentLoudness = currentLoudness * 0.7f + normalisedLoudness * 0.3f;
+	
+	// Update peaks
 	const auto now = std::chrono::steady_clock::now();
 	if (!rawPeaks.empty()) {
 		currentPeaks = std::move(rawPeaks);
@@ -363,7 +354,7 @@ float FFTProcessor::interpolateFrequency(const int bin, const float sampleRate) 
 		return bin * sampleRate / FFT_SIZE;
 	}
 
-	auto magnitude = [](const kiss_fft_cpx& v) { return std::hypot(v.r, v.i); };
+	auto magnitude = [](const kiss_fft_cpx& v) { return std::sqrt(v.r * v.r + v.i * v.i); };
 
 	const float m0 = magnitude(fft_out[bin - 1]);
 	const float m1 = magnitude(fft_out[bin]);

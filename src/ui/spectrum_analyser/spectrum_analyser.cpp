@@ -8,6 +8,8 @@ std::vector<float> SpectrumAnalyser::previousFrameData;
 std::vector<float> SpectrumAnalyser::smoothingBuffer1;
 std::vector<float> SpectrumAnalyser::smoothingBuffer2;
 std::vector<float> SpectrumAnalyser::gaussianWeights;
+std::vector<float> SpectrumAnalyser::cachedFrequencies;
+float SpectrumAnalyser::lastCachedSampleRate = 0.0f;
 bool SpectrumAnalyser::buffersInitialized = false;
 
 void SpectrumAnalyser::drawSpectrumWindow(
@@ -96,6 +98,10 @@ float SpectrumAnalyser::getSampleRate(const std::vector<AudioInput::DeviceInfo>&
 
 void SpectrumAnalyser::prepareSpectrumData(std::vector<float>& xData, std::vector<float>& yData,
                                            const std::vector<float>& magnitudes, float sampleRate) {
+    if (!buffersInitialized) {
+        initializeBuffers();
+    }
+    
     const float binSize = sampleRate / FFTProcessor::FFT_SIZE;
     constexpr float minFreq = FFTProcessor::MIN_FREQ;
     constexpr float maxFreq = FFTProcessor::MAX_FREQ;
@@ -103,12 +109,19 @@ void SpectrumAnalyser::prepareSpectrumData(std::vector<float>& xData, std::vecto
     const float logMaxFreq = std::log10(maxFreq);
     const float logFreqRange = logMaxFreq - logMinFreq;
 
-    if (!magnitudes.empty() && binSize > 0.0f && logFreqRange > 0.0f) {
+    // Cache frequency calculations if sample rate has changed
+    if (sampleRate != lastCachedSampleRate) {
+        lastCachedSampleRate = sampleRate;
         for (int i = 0; i < LINE_COUNT; ++i) {
             float logPosition = static_cast<float>(i) / (LINE_COUNT - 1);
             float currentLogFreq = logMinFreq + logPosition * logFreqRange;
-            float freq = std::pow(10.0f, currentLogFreq);
-            
+            cachedFrequencies[i] = std::pow(10.0f, currentLogFreq);
+        }
+    }
+
+    if (!magnitudes.empty() && binSize > 0.0f && logFreqRange > 0.0f) {
+        for (int i = 0; i < LINE_COUNT; ++i) {
+            const float freq = cachedFrequencies[i];
             xData[i] = freq;
 
             float binIndex = freq / binSize;
@@ -127,19 +140,17 @@ void SpectrumAnalyser::prepareSpectrumData(std::vector<float>& xData, std::vecto
                 magnitudes[idx_m1], magnitudes[idx0], 
                 magnitudes[idx1], magnitudes[idx2], t);
             
-            float normalizedMagnitude = magnitude;
+            float normalisedMagnitude = magnitude;
             
-            if (normalizedMagnitude > 0.001f) {
-                normalizedMagnitude = std::log10(1.0f + normalizedMagnitude * 9.0f);
+            if (normalisedMagnitude > 0.001f) {
+                normalisedMagnitude = std::log10(1.0f + normalisedMagnitude * 9.0f);
             }
             
-            yData[i] = std::clamp(normalizedMagnitude, 0.0f, 1.0f);
+            yData[i] = std::clamp(normalisedMagnitude, 0.0f, 1.0f);
         }
     } else {
         for (int i = 0; i < LINE_COUNT; ++i) {
-            float logPosition = static_cast<float>(i) / (LINE_COUNT - 1);
-            float currentLogFreq = logMinFreq + logPosition * logFreqRange;
-            xData[i] = std::pow(10.0f, currentLogFreq);
+            xData[i] = cachedFrequencies[i];
             yData[i] = 0.0f;
         }
     }
@@ -196,9 +207,9 @@ void SpectrumAnalyser::applyGaussianSmoothing(std::vector<float>& yData) {
 }
 
 int SpectrumAnalyser::getFrequencyDependentWindowSize(int index) {
-    float normalizedIndex = static_cast<float>(index) / (LINE_COUNT - 1);
+    float normalisedIndex = static_cast<float>(index) / (LINE_COUNT - 1);
     // Smaller base window for better definition, with more moderate scaling
-    return BASE_SMOOTHING_WINDOW_SIZE + static_cast<int>(normalizedIndex * 3.0f);
+    return BASE_SMOOTHING_WINDOW_SIZE + static_cast<int>(normalisedIndex * 3.0f);
 }
 
 float SpectrumAnalyser::gaussianWeight(int distance, float sigma) {
@@ -269,14 +280,14 @@ void SpectrumAnalyser::applyAdaptiveSmoothing(std::vector<float>& yData) {
     yData.swap(smoothingBuffer2);
 }
 
-float SpectrumAnalyser::calculateLocalVariance(const std::vector<float>& yData, int center, int windowSize) {
+float SpectrumAnalyser::calculateLocalVariance(const std::vector<float>& yData, int centre, int windowSize) {
     int halfWindow = windowSize / 2;
     float sum = 0.0f;
     float sumSquares = 0.0f;
     int count = 0;
     
-    for (int j = std::max(0, center - halfWindow);
-         j <= std::min(LINE_COUNT - 1, center + halfWindow); ++j) {
+    for (int j = std::max(0, centre - halfWindow);
+         j <= std::min(LINE_COUNT - 1, centre + halfWindow); ++j) {
         sum += yData[j];
         sumSquares += yData[j] * yData[j];
         count++;
@@ -292,6 +303,7 @@ float SpectrumAnalyser::calculateLocalVariance(const std::vector<float>& yData, 
 void SpectrumAnalyser::initializeBuffers() {
     smoothingBuffer1.resize(LINE_COUNT);
     smoothingBuffer2.resize(LINE_COUNT);
+    cachedFrequencies.resize(LINE_COUNT);
     precomputeGaussianWeights();
     buffersInitialized = true;
 }

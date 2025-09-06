@@ -56,6 +56,11 @@ private:
 	ColourMapper::ColourResult currentColour;
 	float currentDominantFrequency;
 	std::vector<FFTProcessor::FrequencyPeak> currentPeaks;
+	
+	// Pre-allocated buffers for hot path optimization
+	std::vector<FFTProcessor::FrequencyPeak> tempPeaks;
+	std::vector<float> tempFreqs;
+	std::vector<float> tempMags;
 
 	void processingThreadFunc();
 	void processBuffer(const AudioBuffer& buffer);

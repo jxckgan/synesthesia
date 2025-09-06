@@ -108,13 +108,13 @@ void rgbToXyz(std::span<const float> r, std::span<const float> g, std::span<cons
         float32x4_t g_plus_offset = vaddq_f32(gVec, gamma_offset);
         float32x4_t b_plus_offset = vaddq_f32(bVec, gamma_offset);
         
-        float32x4_t r_normalized = vmulq_f32(r_plus_offset, gamma_divisor_inv);
-        float32x4_t g_normalized = vmulq_f32(g_plus_offset, gamma_divisor_inv);
-        float32x4_t b_normalized = vmulq_f32(b_plus_offset, gamma_divisor_inv);
+        float32x4_t r_normalised = vmulq_f32(r_plus_offset, gamma_divisor_inv);
+        float32x4_t g_normalised = vmulq_f32(g_plus_offset, gamma_divisor_inv);
+        float32x4_t b_normalised = vmulq_f32(b_plus_offset, gamma_divisor_inv);
         
-        float32x4_t r_linear_high = AccurateMath::accuratePow(r_normalized, 2.4f);
-        float32x4_t g_linear_high = AccurateMath::accuratePow(g_normalized, 2.4f);
-        float32x4_t b_linear_high = AccurateMath::accuratePow(b_normalized, 2.4f);
+        float32x4_t r_linear_high = AccurateMath::accuratePow(r_normalised, 2.4f);
+        float32x4_t g_linear_high = AccurateMath::accuratePow(g_normalised, 2.4f);
+        float32x4_t b_linear_high = AccurateMath::accuratePow(b_normalised, 2.4f);
         
         // Select between linear and power portions
         float32x4_t r_linear = vbslq_f32(r_mask, r_linear_low, r_linear_high);
