@@ -21,12 +21,10 @@ private:
     static constexpr float SPECTRUM_HEIGHT = 210.0f;
     static constexpr int LINE_COUNT = 800;
     static constexpr int BASE_SMOOTHING_WINDOW_SIZE = 5;
-    static constexpr float TEMPORAL_SMOOTHING_FACTOR = 0.65f;
-    static constexpr float GAUSSIAN_SIGMA = 2.0f;
+    static constexpr float TEMPORAL_SMOOTHING_FACTOR = 0.62f;
+    static constexpr float GAUSSIAN_SIGMA = 1.0f;
     static constexpr float CUBIC_TENSION = 0.5f;
-    static constexpr float ADAPTIVE_SMOOTHING_MIN = 0.8f;
-    static constexpr float ADAPTIVE_SMOOTHING_MAX = 2.5f;
-    
+
     static std::vector<float> previousFrameData;
     static std::vector<float> smoothingBuffer1;
     static std::vector<float> smoothingBuffer2;
@@ -41,7 +39,6 @@ private:
     static void smoothData(std::vector<float>& yData);
     static void applyTemporalSmoothing(std::vector<float>& yData);
     static void applyGaussianSmoothing(std::vector<float>& yData);
-    static void applyAdaptiveSmoothing(std::vector<float>& yData);
     static float cubicInterpolate(float y0, float y1, float y2, float y3, float t);
     static float catmullRomSpline(const std::vector<float>& points, int index, float t);
     static int getFrequencyDependentWindowSize(int index);

@@ -173,10 +173,6 @@ void SpectrumAnalyser::smoothData(std::vector<float>& yData) {
         initializeBuffers();
     }
     
-    // First pass: adaptive smoothing based on local variance
-    applyAdaptiveSmoothing(yData);
-    
-    // Second pass: light Gaussian smoothing for final polish
     applyGaussianSmoothing(yData);
 }
 
@@ -234,50 +230,6 @@ float SpectrumAnalyser::cubicInterpolate(float y0, float y1, float y2, float y3,
     a3 = y1;
     
     return a0 * t * t * t + a1 * t * t + a2 * t + a3;
-}
-
-void SpectrumAnalyser::applyAdaptiveSmoothing(std::vector<float>& yData) {
-    // Reuse pre-allocated buffer instead of creating new vector
-    std::fill(smoothingBuffer2.begin(), smoothingBuffer2.end(), 0.0f);
-    
-    for (int i = 0; i < LINE_COUNT; ++i) {
-        int baseWindowSize = getFrequencyDependentWindowSize(i);
-        
-        // Calculate local variance to determine smoothing intensity
-        float variance = calculateLocalVariance(yData, i, baseWindowSize);
-        
-        // Adaptive smoothing: more smoothing in low-variance (flat) areas,
-        // less smoothing in high-variance (peak) areas
-        float adaptiveFactor = ADAPTIVE_SMOOTHING_MIN + 
-            (ADAPTIVE_SMOOTHING_MAX - ADAPTIVE_SMOOTHING_MIN) * (1.0f - std::min(variance * 10.0f, 1.0f));
-        
-        int windowSize = static_cast<int>(baseWindowSize * adaptiveFactor);
-        int halfWindow = windowSize / 2;
-        
-        float weightedSum = 0.0f;
-        float totalWeight = 0.0f;
-        
-        for (int j = std::max(0, i - halfWindow);
-             j <= std::min(LINE_COUNT - 1, i + halfWindow); ++j) {
-            
-            // Use a combination of Gaussian and distance-based weighting
-            int distance = std::abs(i - j);
-            float gaussWeight = gaussianWeight(distance, GAUSSIAN_SIGMA * 0.8f);
-            
-            // Reduce weight for distant points more aggressively
-            float distanceSq = static_cast<float>(distance * distance);
-            float distanceWeight = 1.0f / (1.0f + distanceSq * 0.1f);
-            float weight = gaussWeight * distanceWeight;
-            
-            weightedSum += yData[j] * weight;
-            totalWeight += weight;
-        }
-        
-        smoothingBuffer2[i] = totalWeight > 0.0f ? weightedSum / totalWeight : yData[i];
-    }
-    
-    // Swap data back to yData (no allocation)
-    yData.swap(smoothingBuffer2);
 }
 
 float SpectrumAnalyser::calculateLocalVariance(const std::vector<float>& yData, int centre, int windowSize) {

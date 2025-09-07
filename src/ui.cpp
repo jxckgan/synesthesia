@@ -121,8 +121,8 @@ void updateUI(AudioInput& audioInput, const std::vector<AudioInput::DeviceInfo>&
 
 		for (size_t i = 0; i < count; ++i) {
 			state.smoothedMagnitudes[i] =
-				state.spectrumSmoothingFactor * magnitudes[i] +
-				(1.0f - state.spectrumSmoothingFactor) * state.smoothedMagnitudes[i];
+				(1.0f - state.spectrumSmoothingFactor) * magnitudes[i] +
+				state.spectrumSmoothingFactor * state.smoothedMagnitudes[i];
 		}
 	} else {
 		float decayFactor = std::min(1.0f, deltaTime * UIConstants::COLOUR_DECAY_RATE);
