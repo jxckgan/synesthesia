@@ -145,7 +145,7 @@ void updateUI(AudioInput& audioInput, const std::vector<AudioInput::DeviceInfo>&
 			"Sidebar", nullptr,
 			ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove);
 		
-		ImGui::SetCursorPosY(20);
+		ImGui::SetCursorPosY(25);
 		ImGui::PushFont(ImGui::GetIO().Fonts->Fonts[0]);
 		ImGui::SetCursorPosX((SIDEBAR_WIDTH - ImGui::CalcTextSize("Synesthesia").x) * 0.5f);
 		ImGui::Text("Synesthesia");

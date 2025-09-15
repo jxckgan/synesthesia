@@ -313,13 +313,18 @@ void UpdateChecker::drawUpdateBanner(UpdateState& state, float windowWidth, floa
     ImGui::PushStyleColor(ImGuiCol_WindowBg, ImVec4(0.00f, 0.00f, 0.00f, 0.0f));
     
     ImGui::Begin("##UpdateBanner", nullptr, 
-                 ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | 
-                 ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoScrollbar |
-                 ImGuiWindowFlags_NoCollapse);
-    
+                ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | 
+                ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoScrollbar |
+                ImGuiWindowFlags_NoCollapse);
+
     float textHeight = ImGui::GetTextLineHeight();
     float centreY = (state.bannerHeight - textHeight) * 0.5f;
-    
+
+    #ifdef __APPLE__
+        float leftPadding = 80.0f;
+        ImGui::SetCursorPosX(leftPadding);
+    #endif
+
     ImGui::SetCursorPosY(centreY);
     ImGui::Text("There's an update available,");
     ImGui::SameLine();
