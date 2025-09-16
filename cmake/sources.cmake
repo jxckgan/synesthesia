@@ -46,9 +46,7 @@ function(configure_include_directories)
         ${SRC_DIR}/zero_crossing
         ${SRC_DIR}/cli
         ${CMAKE_BINARY_DIR}
-        /usr/local/include
         /opt/homebrew/include
-        /opt/local/include
     )
 
     if(ENABLE_API_SERVER)

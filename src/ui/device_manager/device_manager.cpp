@@ -72,7 +72,7 @@ void DeviceManager::renderChannelSelection(DeviceState& deviceState,
     if (deviceState.selectedDeviceIndex >= 0 && 
         !deviceState.streamError &&
         !deviceState.channelNames.empty() && 
-        devices[deviceState.selectedDeviceIndex].maxChannels > 2) {
+        devices[static_cast<size_t>(deviceState.selectedDeviceIndex)].maxChannels > 2) {
         
         ImGui::Text("CHANNEL");
         ImGui::SetNextItemWidth(-FLT_MIN);
@@ -87,9 +87,9 @@ void DeviceManager::renderChannelSelection(DeviceState& deviceState,
 
 void DeviceManager::createChannelNames(DeviceState& deviceState, int channelsToUse) {
     deviceState.channelNameStrings.clear();
-    deviceState.channelNameStrings.reserve(channelsToUse);
+    deviceState.channelNameStrings.reserve(static_cast<size_t>(channelsToUse));
     deviceState.channelNames.clear();
-    deviceState.channelNames.reserve(channelsToUse);
+    deviceState.channelNames.reserve(static_cast<size_t>(channelsToUse));
     
     for (int i = 0; i < channelsToUse; i++) {
         deviceState.channelNameStrings.push_back("Channel " + std::to_string(i + 1));
@@ -117,11 +117,11 @@ DeviceSelectionResult DeviceManager::validateAndSelectDevice(DeviceState& device
     }
     
     deviceState.channelNames.clear();
-    int maxChannels = devices[newDeviceIndex].maxChannels;
+    int maxChannels = devices[static_cast<size_t>(newDeviceIndex)].maxChannels;
     deviceState.selectedChannelIndex = 0;
     int channelsToUse = std::min(maxChannels, 16);
 
-    if (!audioInput.initStream(devices[newDeviceIndex].paIndex, channelsToUse)) {
+    if (!audioInput.initStream(devices[static_cast<size_t>(newDeviceIndex)].paIndex, channelsToUse)) {
         return {false, "Error opening device!"};
     }
     

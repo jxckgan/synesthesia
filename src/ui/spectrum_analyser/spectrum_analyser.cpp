@@ -10,7 +10,7 @@ std::vector<float> SpectrumAnalyser::smoothingBuffer2;
 std::vector<float> SpectrumAnalyser::gaussianWeights;
 std::vector<float> SpectrumAnalyser::cachedFrequencies;
 float SpectrumAnalyser::lastCachedSampleRate = 0.0f;
-bool SpectrumAnalyser::buffersInitialized = false;
+bool SpectrumAnalyser::buffersInitialised = false;
 
 void SpectrumAnalyser::drawSpectrumWindow(
     const std::vector<float>& smoothedMagnitudes,
@@ -63,11 +63,11 @@ void SpectrumAnalyser::drawSpectrumWindow(
         ImPlot::SetupAxis(ImAxis_Y1, nullptr, 
                          ImPlotAxisFlags_NoTickLabels | ImPlotAxisFlags_NoTickMarks | 
                          ImPlotAxisFlags_NoGridLines | ImPlotAxisFlags_NoHighlight);
-        ImPlot::SetupAxisLimits(ImAxis_X1, FFTProcessor::MIN_FREQ, FFTProcessor::MAX_FREQ);
+        ImPlot::SetupAxisLimits(ImAxis_X1, static_cast<double>(FFTProcessor::MIN_FREQ), static_cast<double>(FFTProcessor::MAX_FREQ));
         ImPlot::SetupAxisScale(ImAxis_X1, ImPlotScale_Log10);
         
         float plotYMax = 2.0f;
-        ImPlot::SetupAxisLimits(ImAxis_Y1, 0, plotYMax);
+        ImPlot::SetupAxisLimits(ImAxis_Y1, 0.0, static_cast<double>(plotYMax));
         
         ImPlot::SetNextFillStyle(ImVec4(1.0f, 1.0f, 1.0f, 0.1f));
         ImPlot::PlotShaded("##Fill", xData.data(), yData.data(), LINE_COUNT, 0.0);
@@ -89,7 +89,7 @@ void SpectrumAnalyser::drawSpectrumWindow(
 float SpectrumAnalyser::getSampleRate(const std::vector<AudioInput::DeviceInfo>& devices, int selectedDeviceIndex) {
     float sampleRate = 44100.0f;
     if (selectedDeviceIndex >= 0 && static_cast<size_t>(selectedDeviceIndex) < devices.size()) {
-        if (const PaDeviceInfo* deviceInfo = Pa_GetDeviceInfo(devices[selectedDeviceIndex].paIndex)) {
+        if (const PaDeviceInfo* deviceInfo = Pa_GetDeviceInfo(devices[static_cast<size_t>(selectedDeviceIndex)].paIndex)) {
             sampleRate = static_cast<float>(deviceInfo->defaultSampleRate);
         }
     }
@@ -98,8 +98,8 @@ float SpectrumAnalyser::getSampleRate(const std::vector<AudioInput::DeviceInfo>&
 
 void SpectrumAnalyser::prepareSpectrumData(std::vector<float>& xData, std::vector<float>& yData,
                                            const std::vector<float>& magnitudes, float sampleRate) {
-    if (!buffersInitialized) {
-        initializeBuffers();
+    if (!buffersInitialised) {
+        initialiseBuffers();
     }
     
     const float binSize = sampleRate / FFTProcessor::FFT_SIZE;
@@ -112,7 +112,7 @@ void SpectrumAnalyser::prepareSpectrumData(std::vector<float>& xData, std::vecto
     // Cache frequency calculations if sample rate has changed
     if (sampleRate != lastCachedSampleRate) {
         lastCachedSampleRate = sampleRate;
-        for (int i = 0; i < LINE_COUNT; ++i) {
+        for (size_t i = 0; i < LINE_COUNT; ++i) {
             float logPosition = static_cast<float>(i) / (LINE_COUNT - 1);
             float currentLogFreq = logMinFreq + logPosition * logFreqRange;
             cachedFrequencies[i] = std::pow(10.0f, currentLogFreq);
@@ -120,7 +120,7 @@ void SpectrumAnalyser::prepareSpectrumData(std::vector<float>& xData, std::vecto
     }
 
     if (!magnitudes.empty() && binSize > 0.0f && logFreqRange > 0.0f) {
-        for (int i = 0; i < LINE_COUNT; ++i) {
+        for (size_t i = 0; i < LINE_COUNT; ++i) {
             const float freq = cachedFrequencies[i];
             xData[i] = freq;
 
@@ -137,8 +137,8 @@ void SpectrumAnalyser::prepareSpectrumData(std::vector<float>& xData, std::vecto
             int idx2 = std::min(idx1 + 1, static_cast<int>(magnitudes.size()) - 1);
             
             float magnitude = cubicInterpolate(
-                magnitudes[idx_m1], magnitudes[idx0], 
-                magnitudes[idx1], magnitudes[idx2], t);
+                magnitudes[static_cast<size_t>(idx_m1)], magnitudes[static_cast<size_t>(idx0)],
+                magnitudes[static_cast<size_t>(idx1)], magnitudes[static_cast<size_t>(idx2)], t);
             
             float normalisedMagnitude = magnitude;
             
@@ -149,7 +149,7 @@ void SpectrumAnalyser::prepareSpectrumData(std::vector<float>& xData, std::vecto
             yData[i] = std::clamp(normalisedMagnitude, 0.0f, 1.0f);
         }
     } else {
-        for (int i = 0; i < LINE_COUNT; ++i) {
+        for (size_t i = 0; i < LINE_COUNT; ++i) {
             xData[i] = cachedFrequencies[i];
             yData[i] = 0.0f;
         }
@@ -161,16 +161,16 @@ void SpectrumAnalyser::applyTemporalSmoothing(std::vector<float>& yData) {
         previousFrameData.resize(LINE_COUNT, 0.0f);
     }
     
-    for (int i = 0; i < LINE_COUNT; ++i) {
-        yData[i] = TEMPORAL_SMOOTHING_FACTOR * previousFrameData[i] + 
+    for (size_t i = 0; i < LINE_COUNT; ++i) {
+        yData[i] = TEMPORAL_SMOOTHING_FACTOR * previousFrameData[i] +
                    (1.0f - TEMPORAL_SMOOTHING_FACTOR) * yData[i];
         previousFrameData[i] = yData[i];
     }
 }
 
 void SpectrumAnalyser::smoothData(std::vector<float>& yData) {
-    if (!buffersInitialized) {
-        initializeBuffers();
+    if (!buffersInitialised) {
+        initialiseBuffers();
     }
     
     applyGaussianSmoothing(yData);
@@ -180,18 +180,18 @@ void SpectrumAnalyser::applyGaussianSmoothing(std::vector<float>& yData) {
     // Reuse pre-allocated buffer instead of creating new vector
     std::fill(smoothingBuffer1.begin(), smoothingBuffer1.end(), 0.0f);
     
-    for (int i = 0; i < LINE_COUNT; ++i) {
-        int windowSize = getFrequencyDependentWindowSize(i);
+    for (size_t i = 0; i < LINE_COUNT; ++i) {
+        int windowSize = getFrequencyDependentWindowSize(static_cast<int>(i));
         int halfWindow = windowSize / 2;
         
         float weightedSum = 0.0f;
         float totalWeight = 0.0f;
         
-        for (int j = std::max(0, i - halfWindow);
-             j <= std::min(LINE_COUNT - 1, i + halfWindow); ++j) {
+        for (int j = std::max(0, static_cast<int>(i) - halfWindow);
+             j <= std::min(LINE_COUNT - 1, static_cast<int>(i) + halfWindow); ++j) {
             // Lighter smoothing - reduced sigma for maintaining definition
-            float weight = gaussianWeight(std::abs(i - j), GAUSSIAN_SIGMA * 0.7f);
-            weightedSum += yData[j] * weight;
+            float weight = gaussianWeight(std::abs(static_cast<int>(i) - j), GAUSSIAN_SIGMA * 0.7f);
+            weightedSum += yData[static_cast<size_t>(j)] * weight;
             totalWeight += weight;
         }
         
@@ -213,7 +213,7 @@ float SpectrumAnalyser::gaussianWeight(int distance, float sigma) {
     
     // Use precomputed weights for standard sigma, compute for others
     if (std::abs(sigma - GAUSSIAN_SIGMA) < 0.01f && distance < static_cast<int>(gaussianWeights.size())) {
-        return gaussianWeights[distance];
+        return gaussianWeights[static_cast<size_t>(distance)];
     }
     
     // Fallback to computation for non-standard sigma values
@@ -240,8 +240,8 @@ float SpectrumAnalyser::calculateLocalVariance(const std::vector<float>& yData, 
     
     for (int j = std::max(0, centre - halfWindow);
          j <= std::min(LINE_COUNT - 1, centre + halfWindow); ++j) {
-        sum += yData[j];
-        sumSquares += yData[j] * yData[j];
+        sum += yData[static_cast<size_t>(j)];
+        sumSquares += yData[static_cast<size_t>(j)] * yData[static_cast<size_t>(j)];
         count++;
     }
     
@@ -252,12 +252,12 @@ float SpectrumAnalyser::calculateLocalVariance(const std::vector<float>& yData, 
     return std::max(variance, 0.0f);
 }
 
-void SpectrumAnalyser::initializeBuffers() {
+void SpectrumAnalyser::initialiseBuffers() {
     smoothingBuffer1.resize(LINE_COUNT);
     smoothingBuffer2.resize(LINE_COUNT);
     cachedFrequencies.resize(LINE_COUNT);
     precomputeGaussianWeights();
-    buffersInitialized = true;
+    buffersInitialised = true;
 }
 
 void SpectrumAnalyser::precomputeGaussianWeights() {
@@ -267,10 +267,10 @@ void SpectrumAnalyser::precomputeGaussianWeights() {
     
     for (int d = 0; d <= maxDistance; ++d) {
         if (d == 0) {
-            gaussianWeights[d] = 1.0f;
+            gaussianWeights[static_cast<size_t>(d)] = 1.0f;
         } else {
             float distance = static_cast<float>(d);
-            gaussianWeights[d] = std::exp(-(distance * distance) / (2.0f * GAUSSIAN_SIGMA * GAUSSIAN_SIGMA));
+            gaussianWeights[static_cast<size_t>(d)] = std::exp(-(distance * distance) / (2.0f * GAUSSIAN_SIGMA * GAUSSIAN_SIGMA));
         }
     }
 }

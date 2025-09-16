@@ -95,7 +95,7 @@ void ZeroCrossingDetector::analyseZeroCrossings() {
 
 	if (!periods.empty()) {
 		const size_t middle = periods.size() / 2;
-		std::ranges::nth_element(periods, periods.begin() + middle);
+		std::ranges::nth_element(periods, periods.begin() + static_cast<std::ptrdiff_t>(middle));
 		const float medianPeriod = periods[middle];
 
 		const float refinedFreq = 1.0f / medianPeriod;

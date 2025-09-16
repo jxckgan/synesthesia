@@ -52,11 +52,25 @@ if(WIN32)
     )
 elseif(APPLE)
     target_compile_options(${EXECUTABLE_NAME} PRIVATE
-        "-Wall" "-Wformat" "-O3" "-ffast-math" "-march=native"
+        "-Wall" "-Wextra" "-Wformat" "-Wpedantic"
+        "-Wunused" "-Wuninitialized" "-Wshadow"
+        "-Wconversion" "-Wsign-conversion" "-Wfloat-conversion"
+        "-Wnull-dereference" "-Wdouble-promotion"
+        "-Wmissing-include-dirs" "-Wundef" "-Wredundant-decls"
+        "-Woverloaded-virtual" "-Wnon-virtual-dtor"
+        "-O3" "-ffast-math" "-march=native"
     )
 
     set_source_files_properties(${SRC_DIR}/renderers/metal/main.mm PROPERTIES COMPILE_FLAGS "${OBJC_FLAGS}")
     set_source_files_properties(${SRC_DIR}/ui/updating/update.cpp PROPERTIES COMPILE_FLAGS "-Wno-nan-infinity-disabled")
+
+    set_property(SOURCE ${SRC_DIR}/ui/controls/controls.cpp APPEND PROPERTY COMPILE_OPTIONS "-Wno-c99-extensions")
+    set_property(SOURCE ${SRC_DIR}/ui.cpp APPEND PROPERTY COMPILE_OPTIONS "-Wno-c99-extensions")
+    set_property(SOURCE ${SRC_DIR}/api/common/serialisation.cpp APPEND PROPERTY COMPILE_OPTIONS "-Wno-c99-extensions")
+    set_property(SOURCE ${SRC_DIR}/api/common/transport.cpp APPEND PROPERTY COMPILE_OPTIONS "-Wno-c99-extensions")
+    set_property(SOURCE ${SRC_DIR}/api/server/api_server.cpp APPEND PROPERTY COMPILE_OPTIONS "-Wno-c99-extensions")
+    set_property(SOURCE ${SRC_DIR}/api/synesthesia_api_integration.cpp APPEND PROPERTY COMPILE_OPTIONS "-Wno-c99-extensions")
+    set_property(SOURCE ${SRC_DIR}/cli/headless.cpp APPEND PROPERTY COMPILE_OPTIONS "-Wno-c99-extensions")
 endif()
 
 if(APPLE)
@@ -115,7 +129,7 @@ if(APPLE AND BUILD_MACOS_BUNDLE)
         MACOSX_BUNDLE_BUNDLE_VERSION "${SYNESTHESIA_VERSION}"
         MACOSX_BUNDLE_SHORT_VERSION_STRING "${SYNESTHESIA_VERSION}"
         MACOSX_BUNDLE_LONG_VERSION_STRING "Synesthesia ${SYNESTHESIA_VERSION}"
-        MACOSX_BUNDLE_COPYRIGHT "Copyright © 2025 Jack Gannon | MIT License."
+        MACOSX_BUNDLE_COPYRIGHT "Copyright © 2025 Jack Gannon | MIT License"
         MACOSX_BUNDLE_GUI_IDENTIFIER "com.jackgannon.Synesthesia"
         MACOSX_BUNDLE_EXECUTABLE_NAME "${EXECUTABLE_NAME}"
         RESOURCE "${ICON_SRC}"

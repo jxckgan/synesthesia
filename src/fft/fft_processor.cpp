@@ -193,7 +193,7 @@ void FFTProcessor::calculateMagnitudes(std::vector<float>& rawMagnitudes, const 
 
 #ifdef USE_NEON_OPTIMISATIONS
 	if (FFTProcessorNEON::isNEONAvailable() && fft_out.size() >= 4) {
-		// Use optimized SIMD function directly on FFT output
+		// Use optimised SIMD function directly on FFT output
 		FFTProcessorNEON::calculateMagnitudesFromComplex(
 			std::span<float>(rawMagnitudes.data(), rawMagnitudes.size()),
 			fft_out.data(), fft_out.size());
@@ -295,7 +295,6 @@ void FFTProcessor::findFrequencyPeaks(const float sampleRate) {
 
 	calculateMagnitudes(rawMagnitudes, sampleRate, maxMagnitude, totalEnergy);
 
-	// Calculate loudness without locking first  
 	const float rmsValue = std::sqrt(totalEnergy / static_cast<float>(binCount));
 	const float dbFS = 20.0f * std::log10(std::max(rmsValue, 1e-6f));
 	const float normalisedLoudness = std::clamp((dbFS + 60.0f) / 60.0f, 0.0f, 1.0f);
@@ -314,10 +313,8 @@ void FFTProcessor::findFrequencyPeaks(const float sampleRate) {
 	// Single atomic update of all shared state
 	std::lock_guard lock(peaksMutex);
 	
-	// Update loudness
 	currentLoudness = currentLoudness * 0.7f + normalisedLoudness * 0.3f;
 	
-	// Update peaks
 	const auto now = std::chrono::steady_clock::now();
 	if (!rawPeaks.empty()) {
 		currentPeaks = std::move(rawPeaks);
@@ -356,9 +353,9 @@ float FFTProcessor::interpolateFrequency(const int bin, const float sampleRate) 
 
 	auto magnitude = [](const kiss_fft_cpx& v) { return std::sqrt(v.r * v.r + v.i * v.i); };
 
-	const float m0 = magnitude(fft_out[bin - 1]);
-	const float m1 = magnitude(fft_out[bin]);
-	const float m2 = magnitude(fft_out[bin + 1]);
+	const float m0 = magnitude(fft_out[static_cast<size_t>(bin - 1)]);
+	const float m1 = magnitude(fft_out[static_cast<size_t>(bin)]);
+	const float m2 = magnitude(fft_out[static_cast<size_t>(bin + 1)]);
 
 	const float denominator = m0 - 2.0f * m1 + m2;
 	if (std::abs(denominator) < 1e-3f)
@@ -383,7 +380,7 @@ float FFTProcessor::calculateNoiseFloor(const std::vector<float>& magnitudes) {
 		return 1e-5f;
 	const size_t n = filteredMags.size();
 	const size_t medianIdx = n / 2;
-	std::ranges::nth_element(filteredMags, filteredMags.begin() + medianIdx);
+	std::ranges::nth_element(filteredMags, filteredMags.begin() + static_cast<std::ptrdiff_t>(medianIdx));
 	const float median = filteredMags[medianIdx];
 	const float peak = *std::ranges::max_element(filteredMags);
 	const float adaptiveFactor = 0.1f + 0.05f * std::log2(1.0f + peak / (median + 1e-6f));

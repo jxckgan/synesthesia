@@ -182,7 +182,6 @@ int app_main(int, char**)
 
     UIState uiState;
 
-    // Frame rate limiting: 120 FPS = ~8.33ms per frame
     constexpr auto target_frame_duration = std::chrono::microseconds(8333);
 
     bool done = false;
@@ -249,7 +248,6 @@ int app_main(int, char**)
         g_fenceLastSignaledValue = fenceValue;
         frameCtx->FenceValue = fenceValue;
 
-        // Frame rate limiting
         auto frame_end = std::chrono::steady_clock::now();
         auto frame_duration = frame_end - frame_start;
         if (frame_duration < target_frame_duration) {

@@ -30,14 +30,14 @@ void renderFrequencyInfoPanel(AudioInput& audioInput, float* clear_color) {
             frequencies, magnitudes, {}, UIConstants::DEFAULT_SAMPLE_RATE, UIConstants::DEFAULT_GAMMA);
 
         if (!peaks.empty()) {
-            ImGui::Text("Dominant: %.1f Hz", peaks[0].frequency);
-            ImGui::Text("Wavelength: %.1f nm", currentColourResult.dominantWavelength);
+            ImGui::Text("Dominant: %.1f Hz", static_cast<double>(peaks[0].frequency));
+            ImGui::Text("Wavelength: %.1f nm", static_cast<double>(currentColourResult.dominantWavelength));
             ImGui::Text("Number of peaks detected: %d", static_cast<int>(peaks.size()));
         } else {
             ImGui::TextDisabled("No significant frequencies");
         }
         
-        ImGui::Text("RGB: (%.2f, %.2f, %.2f)", clear_color[0], clear_color[1], clear_color[2]);
+        ImGui::Text("RGB: (%.2f, %.2f, %.2f)", static_cast<double>(clear_color[0]), static_cast<double>(clear_color[1]), static_cast<double>(clear_color[2]));
         
         ImGui::Unindent(10);
         ImGui::Spacing();
@@ -217,9 +217,9 @@ void renderAdvancedSettingsPanel(UIState& state) {
                 ImGui::Text("FPS: %u", current_fps);
                 ImGui::Text("Mode: %s", high_perf ? "High Perf" : "Standard");
                 if (avg_frame_time > 0) {
-                    ImGui::Text("Frame Time: %.2fms", avg_frame_time);
+                    ImGui::Text("Frame Time: %.2fms", static_cast<double>(avg_frame_time));
                     float estimated_latency = avg_frame_time;
-                    ImGui::Text("Latency: ~%.1fms", estimated_latency);
+                    ImGui::Text("Latency: ~%.1fms", static_cast<double>(estimated_latency));
                     
                     if (estimated_latency < 5.0f) {
                         ImGui::TextColored(ImVec4(0.0f, 1.0f, 0.0f, 1.0f), "✓ Ultra-Low");

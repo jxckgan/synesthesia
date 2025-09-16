@@ -318,41 +318,41 @@ ColourMapper::ColourResult ColourMapper::frequenciesToColour(
 					normalisedWeights.push_back(weights[i] / totalWeight);
 				}
 				
-				size_t validCount = validFrequencies.size();
-				if (validCount > 0) {
-					wavelengths.resize(validCount);
-					r_values.resize(validCount);
-					g_values.resize(validCount);
-					b_values.resize(validCount);
-					L_values.resize(validCount);
-					a_values.resize(validCount);
-					b_comp_values.resize(validCount);
+				size_t validFreqCount = validFrequencies.size();
+				if (validFreqCount > 0) {
+					wavelengths.resize(validFreqCount);
+					r_values.resize(validFreqCount);
+					g_values.resize(validFreqCount);
+					b_values.resize(validFreqCount);
+					L_values.resize(validFreqCount);
+					a_values.resize(validFreqCount);
+					b_comp_values.resize(validFreqCount);
 				}
 				
-				if (validCount > 0) {
+				if (validFreqCount > 0) {
 #ifdef USE_NEON_OPTIMISATIONS
-					if (ColourMapperNEON::isNEONAvailable() && validCount >= 4) {
+					if (ColourMapperNEON::isNEONAvailable() && validFreqCount >= 4) {
 						ColourMapperNEON::frequenciesToWavelengths(
-							std::span<float>(wavelengths.data(), validCount),
-							std::span<const float>(validFrequencies.data(), validCount),
-							validCount
+							std::span<float>(wavelengths.data(), validFreqCount),
+							std::span<const float>(validFrequencies.data(), validFreqCount),
+							validFreqCount
 						);
-						
-						for (size_t i = 0; i < validCount; ++i) {
+
+						for (size_t i = 0; i < validFreqCount; ++i) {
 							wavelengthToRGBCIE(wavelengths[i], r_values[i], g_values[i], b_values[i]);
 						}
-						
+
 						ColourMapperNEON::rgbToLab(
-							std::span<const float>(r_values.data(), validCount),
-							std::span<const float>(g_values.data(), validCount),
-							std::span<const float>(b_values.data(), validCount),
-							std::span<float>(L_values.data(), validCount),
-							std::span<float>(a_values.data(), validCount),
-							std::span<float>(b_comp_values.data(), validCount),
-							validCount
+							std::span<const float>(r_values.data(), validFreqCount),
+							std::span<const float>(g_values.data(), validFreqCount),
+							std::span<const float>(b_values.data(), validFreqCount),
+							std::span<float>(L_values.data(), validFreqCount),
+							std::span<float>(a_values.data(), validFreqCount),
+							std::span<float>(b_comp_values.data(), validFreqCount),
+							validFreqCount
 						);
-						
-						for (size_t i = 0; i < validCount; ++i) {
+
+						for (size_t i = 0; i < validFreqCount; ++i) {
 							L_blend += L_values[i] * normalisedWeights[i];
 							a_blend += a_values[i] * normalisedWeights[i];
 							b_blend += b_comp_values[i] * normalisedWeights[i];
@@ -360,7 +360,7 @@ ColourMapper::ColourResult ColourMapper::frequenciesToColour(
 					} else
 #endif
 					{
-						for (size_t i = 0; i < validCount; ++i) {
+						for (size_t i = 0; i < validFreqCount; ++i) {
 							float wavelength = logFrequencyToWavelength(validFrequencies[i]);
 
 							float r, g, b;

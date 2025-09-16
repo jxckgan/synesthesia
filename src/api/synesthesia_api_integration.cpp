@@ -75,9 +75,10 @@ void SynesthesiaAPIIntegration::updateColourData(const std::vector<float>& frequ
         last_colour_data_ = std::move(colour_data);
         last_sample_rate_ = sample_rate;
         last_fft_size_ = fft_size;
-        last_timestamp_ = std::chrono::duration_cast<std::chrono::microseconds>(
+        auto duration = std::chrono::duration_cast<std::chrono::microseconds>(
             std::chrono::steady_clock::now().time_since_epoch()
         ).count();
+        last_timestamp_ = static_cast<uint64_t>(std::max(duration, 0LL));
     }
 }
 
@@ -100,12 +101,10 @@ void SynesthesiaAPIIntegration::updateFinalColour(float r, float g, float b,
         float frequency = frequencies[i];
         float magnitude = magnitudes[i];
         
-        // Filter by frequency range
         if (frequency < frequency_range_min_ || frequency > frequency_range_max_) {
             continue;
         }
         
-        // Skip very low magnitudes to reduce data size
         if (magnitude < 0.001f) {
             continue;
         }
@@ -152,9 +151,10 @@ void SynesthesiaAPIIntegration::updateFinalColour(float r, float g, float b,
         last_colour_data_ = std::move(colour_data);
         last_sample_rate_ = sample_rate;
         last_fft_size_ = fft_size;
-        last_timestamp_ = std::chrono::duration_cast<std::chrono::microseconds>(
+        auto duration = std::chrono::duration_cast<std::chrono::microseconds>(
             std::chrono::steady_clock::now().time_since_epoch()
         ).count();
+        last_timestamp_ = static_cast<uint64_t>(std::max(duration, 0LL));
     }
 }
 
@@ -235,12 +235,10 @@ std::vector<API::ColourData> SynesthesiaAPIIntegration::convertToColourData(cons
         float frequency = frequencies[i];
         float magnitude = magnitudes[i];
         
-        // Filter by frequency range
         if (frequency < frequency_range_min_ || frequency > frequency_range_max_) {
             continue;
         }
         
-        // Skip very low magnitudes to reduce data size
         if (magnitude < 0.001f) {
             continue;
         }
@@ -251,7 +249,7 @@ std::vector<API::ColourData> SynesthesiaAPIIntegration::convertToColourData(cons
     return colour_data;
 }
 
-API::ColourData SynesthesiaAPIIntegration::frequencyToColourData(float frequency, float magnitude, uint32_t sample_rate) {
+API::ColourData SynesthesiaAPIIntegration::frequencyToColourData(float frequency, float magnitude, uint32_t /* sample_rate */) {
     API::ColourData data{};
     data.frequency = frequency;
     data.magnitude = magnitude;
@@ -265,7 +263,7 @@ API::ColourData SynesthesiaAPIIntegration::frequencyToColourData(float frequency
     // Use a simple approach since we don't have direct wavelengthToColour method
     // This maps wavelength to visible spectrum colours
     if (data.wavelength < 380.0f || data.wavelength > 780.0f) {
-        r = g = b = 0.0f; // Outside visible spectrum
+        r = g = b = 0.0f;
     } else {
         // Simple wavelength to RGB mapping for visible spectrum
         if (data.wavelength < 440.0f) {
@@ -295,7 +293,6 @@ API::ColourData SynesthesiaAPIIntegration::frequencyToColourData(float frequency
         }
     }
     
-    // Apply magnitude scaling
     float scale = std::min(magnitude * 2.0f, 1.0f);
     
     switch (current_colour_space_) {

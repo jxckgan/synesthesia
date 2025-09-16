@@ -61,10 +61,8 @@ void updateUI(AudioInput& audioInput, const std::vector<AudioInput::DeviceInfo>&
 		float whiteMix = 0.0f;
 		float gamma = 0.8f;
 		
-		// Set EQ gains before getting peaks to ensure they're applied
 		audioInput.getFFTProcessor().setEQGains(state.lowGain, state.midGain, state.highGain);
 		
-		// Get peaks only once per frame
 		auto peaks = audioInput.getFrequencyPeaks();
 		std::vector<float> freqs, mags;
 		freqs.reserve(peaks.size());

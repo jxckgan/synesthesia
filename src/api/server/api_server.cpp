@@ -45,7 +45,7 @@ bool APIServer::start() {
     running_.store(true);
     
     if (config_.pre_allocate_buffers) {
-        initializeBufferPool();
+        initialiseBufferPool();
     }
     
     worker_thread_ = std::thread(&APIServer::workerLoop, this);
@@ -140,7 +140,9 @@ uint32_t APIServer::calculateOptimalFPS(size_t client_count) const {
     } else if (client_count == 1) {
         return config_.max_fps;
     } else {
-        uint32_t scaled_fps = config_.max_fps - ((client_count - 1) * 30);
+        // Safely calculate scaled FPS with bounds checking
+        uint32_t reduction = std::min(static_cast<uint32_t>((client_count - 1) * 30), config_.max_fps - config_.base_fps);
+        uint32_t scaled_fps = config_.max_fps - reduction;
         return std::max(scaled_fps, config_.base_fps);
     }
 }
@@ -231,10 +233,10 @@ void APIServer::handleConnectionChange(const std::string& client_id, bool connec
     }
 }
 
-void APIServer::handleError(const std::string& error_message) {
+void APIServer::handleError(const std::string& /* error_message */) {
 }
 
-void APIServer::sendDiscoveryResponse(const std::string& client_address) {
+void APIServer::sendDiscoveryResponse(const std::string& /* client_address */) {
 }
 
 void APIServer::sendErrorResponse(const std::string& client_id, ErrorCode error_code, const std::string& message) {
@@ -246,7 +248,7 @@ void APIServer::sendErrorResponse(const std::string& client_id, ErrorCode error_
     ipc_transport_->sendMessage(error_msg, client_id);
 }
 
-void APIServer::initializeBufferPool() {
+void APIServer::initialiseBufferPool() {
     std::lock_guard<std::mutex> lock(buffer_pool_mutex_);
     buffer_pool_.clear();
     buffer_pool_.reserve(config_.buffer_pool_size);

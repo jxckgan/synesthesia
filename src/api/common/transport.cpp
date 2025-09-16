@@ -228,16 +228,13 @@ private:
             return false;
         }
         
-        // Append new data to buffer
         buffer.insert(buffer.end(), temp_buffer, temp_buffer + bytes);
         
-        // Process complete messages
         while (buffer.size() >= header_size) {
             // Check magic number (first 4 bytes)
             uint32_t magic;
             std::memcpy(&magic, buffer.data(), sizeof(magic));
             if (magic != 0x53594E45) {
-                // Invalid magic, clear buffer and return
                 buffer.clear();
                 return true;
             }
@@ -248,24 +245,20 @@ private:
             
             size_t total_message_size = header_size + length;
             if (buffer.size() < total_message_size) {
-                // Incomplete message, wait for more data
                 break;
             }
             
             // Validate message size to prevent excessive memory usage
             if (total_message_size > MAX_MESSAGE_SIZE) {
-                // Invalid message size, clear buffer
                 buffer.clear();
                 return true;
             }
             
-            // Process complete message
             if (message_callback_) {
                 message_callback_(std::span<const uint8_t>(buffer.data(), total_message_size), sender_id);
             }
             
-            // Remove processed message from buffer
-            buffer.erase(buffer.begin(), buffer.begin() + total_message_size);
+            buffer.erase(buffer.begin(), buffer.begin() + static_cast<std::ptrdiff_t>(total_message_size));
         }
         
         return true;
@@ -276,7 +269,7 @@ private:
         while (total_sent < data.size()) {
             ssize_t sent = send(fd, data.data() + total_sent, data.size() - total_sent, MSG_NOSIGNAL);
             if (sent <= 0) return false;
-            total_sent += sent;
+            total_sent += static_cast<size_t>(sent);
         }
         return true;
     }

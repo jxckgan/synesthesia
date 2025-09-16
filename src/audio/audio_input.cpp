@@ -15,7 +15,7 @@ AudioInput::AudioInput()
 	previousOutputs.push_back(0.0f);
 
 	if (const PaError err = Pa_Initialize(); err != paNoError) {
-		throw std::runtime_error("PortAudio initialization failed: " +
+		throw std::runtime_error("PortAudio initialisation failed: " +
 								 std::string(Pa_GetErrorText(err)));
 	}
 
@@ -66,8 +66,8 @@ bool AudioInput::initStream(const int deviceIndex, const int numChannels) {
 
 	activeChannel = 0;
 
-	previousInputs.resize(channelCount, 0.0f);
-	previousOutputs.resize(channelCount, 0.0f);
+	previousInputs.resize(static_cast<size_t>(channelCount), 0.0f);
+	previousOutputs.resize(static_cast<size_t>(channelCount), 0.0f);
 
 	PaStreamParameters inputParameters{};
 	inputParameters.device = deviceIndex;
@@ -116,9 +116,9 @@ void AudioInput::stopStream() {
 	}
 }
 
-int AudioInput::audioCallback(const void* input, void* output, const unsigned long frameCount,
-							  const PaStreamCallbackTimeInfo* timeInfo,
-							  PaStreamCallbackFlags statusFlags, void* userData) {
+int AudioInput::audioCallback(const void* input, void* /* output */, const unsigned long frameCount,
+							  const PaStreamCallbackTimeInfo* /* timeInfo */,
+							  PaStreamCallbackFlags /* statusFlags */, void* userData) {
 	auto* audio = static_cast<AudioInput*>(userData);
 
 	if (!input) {
@@ -140,12 +140,13 @@ int AudioInput::audioCallback(const void* input, void* output, const unsigned lo
 		}
 
 		for (unsigned long i = 0; i < frameCount; ++i) {
-			const float sample = inBuffer[i * channelCount + activeChannel];
+			const auto activeChannelIndex = static_cast<size_t>(activeChannel);
+			const float sample = inBuffer[i * static_cast<unsigned long>(channelCount) + activeChannelIndex];
 
-			float filteredSample = sample - audio->previousInputs[activeChannel] +
-								   audio->dcRemovalAlpha * audio->previousOutputs[activeChannel];
-			audio->previousInputs[activeChannel] = sample;
-			audio->previousOutputs[activeChannel] = filteredSample;
+			float filteredSample = sample - audio->previousInputs[activeChannelIndex] +
+								   audio->dcRemovalAlpha * audio->previousOutputs[activeChannelIndex];
+			audio->previousInputs[activeChannelIndex] = sample;
+			audio->previousOutputs[activeChannelIndex] = filteredSample;
 
 			if (std::abs(filteredSample) < audio->noiseGateThreshold) {
 				filteredSample = 0.0f;

@@ -234,20 +234,17 @@ std::optional<DiscoveryRequest> MessageDeserialiser::deserialiseDiscoveryRequest
     DiscoveryRequest request;
     const uint8_t* data = payload.data();
     
-    // Copy client_name with bounds checking
     if (payload.size() < sizeof(request.client_name)) {
         return std::nullopt;
     }
     std::memcpy(&request.client_name, data, sizeof(request.client_name));
     data += sizeof(request.client_name);
     
-    // Copy client_version with bounds checking
     if (payload.size() < sizeof(request.client_name) + sizeof(request.client_version)) {
         return std::nullopt;
     }
     std::memcpy(&request.client_version, data, sizeof(request.client_version));
     
-    // Ensure null termination
     request.client_name[sizeof(request.client_name) - 1] = '\0';
     
     return request;
@@ -265,41 +262,35 @@ std::optional<DiscoveryResponse> MessageDeserialiser::deserialiseDiscoveryRespon
     const uint8_t* data = payload.data();
     size_t offset = 0;
     
-    // Copy server_name
     if (offset + sizeof(response.server_name) > payload.size()) {
         return std::nullopt;
     }
     std::memcpy(&response.server_name, data + offset, sizeof(response.server_name));
     offset += sizeof(response.server_name);
     
-    // Copy server_version
     if (offset + sizeof(response.server_version) > payload.size()) {
         return std::nullopt;
     }
     std::memcpy(&response.server_version, data + offset, sizeof(response.server_version));
     offset += sizeof(response.server_version);
     
-    // Copy ipc_port
     if (offset + sizeof(response.ipc_port) > payload.size()) {
         return std::nullopt;
     }
     std::memcpy(&response.ipc_port, data + offset, sizeof(response.ipc_port));
     offset += sizeof(response.ipc_port);
     
-    // Copy ipc_path
     if (offset + sizeof(response.ipc_path) > payload.size()) {
         return std::nullopt;
     }
     std::memcpy(&response.ipc_path, data + offset, sizeof(response.ipc_path));
     offset += sizeof(response.ipc_path);
     
-    // Copy capabilities
     if (offset + sizeof(response.capabilities) > payload.size()) {
         return std::nullopt;
     }
     std::memcpy(&response.capabilities, data + offset, sizeof(response.capabilities));
     
-    // Ensure null termination
     response.server_name[sizeof(response.server_name) - 1] = '\0';
     response.ipc_path[sizeof(response.ipc_path) - 1] = '\0';
     
@@ -318,35 +309,30 @@ std::optional<ConfigUpdate> MessageDeserialiser::deserialiseConfigUpdate(
     const uint8_t* data = payload.data();
     size_t offset = 0;
     
-    // Copy smoothing_enabled
     if (offset + sizeof(config.smoothing_enabled) > payload.size()) {
         return std::nullopt;
     }
     std::memcpy(&config.smoothing_enabled, data + offset, sizeof(config.smoothing_enabled));
     offset += sizeof(config.smoothing_enabled);
     
-    // Copy smoothing_factor
     if (offset + sizeof(config.smoothing_factor) > payload.size()) {
         return std::nullopt;
     }
     std::memcpy(&config.smoothing_factor, data + offset, sizeof(config.smoothing_factor));
     offset += sizeof(config.smoothing_factor);
     
-    // Copy colour_space
     if (offset + sizeof(config.colour_space) > payload.size()) {
         return std::nullopt;
     }
     std::memcpy(&config.colour_space, data + offset, sizeof(config.colour_space));
     offset += sizeof(config.colour_space);
     
-    // Copy frequency_range_min
     if (offset + sizeof(config.frequency_range_min) > payload.size()) {
         return std::nullopt;
     }
     std::memcpy(&config.frequency_range_min, data + offset, sizeof(config.frequency_range_min));
     offset += sizeof(config.frequency_range_min);
     
-    // Copy frequency_range_max
     if (offset + sizeof(config.frequency_range_max) > payload.size()) {
         return std::nullopt;
     }
@@ -367,20 +353,17 @@ std::optional<ErrorResponse> MessageDeserialiser::deserialiseError(
     const uint8_t* data = payload.data();
     size_t offset = 0;
     
-    // Copy error_code
     if (offset + sizeof(error.error_code) > payload.size()) {
         return std::nullopt;
     }
     std::memcpy(&error.error_code, data + offset, sizeof(error.error_code));
     offset += sizeof(error.error_code);
     
-    // Copy error_message
     if (offset + sizeof(error.error_message) > payload.size()) {
         return std::nullopt;
     }
     std::memcpy(&error.error_message, data + offset, sizeof(error.error_message));
     
-    // Ensure null termination
     error.error_message[sizeof(error.error_message) - 1] = '\0';
     
     return error;
@@ -403,9 +386,10 @@ bool MessageDeserialiser::validateHeader(const MessageHeader& header, size_t tot
 }
 
 uint64_t MessageDeserialiser::getCurrentTimestamp() {
-    return std::chrono::duration_cast<std::chrono::microseconds>(
+    auto duration = std::chrono::duration_cast<std::chrono::microseconds>(
         std::chrono::steady_clock::now().time_since_epoch()
     ).count();
+    return static_cast<uint64_t>(std::max(duration, 0LL));
 }
 
 }

@@ -30,7 +30,7 @@ HeadlessInterface::~HeadlessInterface() {
     instance = nullptr;
 }
 
-void HeadlessInterface::signalHandler(int signal) {
+void HeadlessInterface::signalHandler(int /* signal */) {
     if (instance) {
         instance->running = false;
     }
@@ -40,7 +40,7 @@ void HeadlessInterface::setupTerminal() {
     struct termios term;
     tcgetattr(STDIN_FILENO, &term);
     
-    term.c_lflag &= ~(ICANON | ECHO);
+    term.c_lflag &= ~static_cast<tcflag_t>(ICANON | ECHO);
     term.c_cc[VMIN] = 0;
     term.c_cc[VTIME] = 0;
     
@@ -76,7 +76,7 @@ void HeadlessInterface::run(bool enableAPI, const std::string& preferredDevice) 
                 if (audioInput.initStream(devices[i].paIndex)) {
                     std::cout << "Using preferred device: " << devices[i].name << std::endl;
                 } else {
-                    std::cout << "Failed to initialize preferred device, falling back to selection" << std::endl;
+                    std::cout << "Failed to initialise preferred device, falling back to selection" << std::endl;
                     deviceSelected = false;
                     selectedDeviceIndex = -1;
                 }
@@ -192,7 +192,7 @@ void HeadlessInterface::displayFrequencyInfo() {
         std::cout << "\033[2J\033[H";
         
         std::cout << "=== SYNESTHESIA - FREQUENCY ANALYSIS ===\n\n";
-        std::cout << "Device: " << devices[selectedDeviceIndex].name << "\n\n";
+        std::cout << "Device: " << devices[static_cast<size_t>(selectedDeviceIndex)].name << "\n\n";
         
         if (!peaks.empty()) {
             std::cout << std::fixed << std::setprecision(1);
@@ -254,7 +254,7 @@ void HeadlessInterface::handleKeypress() {
                 }
             } else if (ch == '\n' || ch == '\r') {
                 if (selectedDeviceIndex >= 0 && selectedDeviceIndex < static_cast<int>(devices.size())) {
-                    if (audioInput.initStream(devices[selectedDeviceIndex].paIndex)) {
+                    if (audioInput.initStream(devices[static_cast<size_t>(selectedDeviceIndex)].paIndex)) {
                         deviceSelected = true;
                     }
                 }

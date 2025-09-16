@@ -68,7 +68,7 @@ private:
     void sendDiscoveryResponse(const std::string& client_address);
     void sendErrorResponse(const std::string& client_id, ErrorCode error_code, const std::string& message);
     
-    void initializeBufferPool();
+    void initialiseBufferPool();
     std::vector<uint8_t> getBuffer(size_t size);
     void returnBuffer(std::vector<uint8_t>&& buffer);
     

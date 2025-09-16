@@ -63,7 +63,7 @@ namespace AccurateMath {
 void rgbToXyz(std::span<const float> r, std::span<const float> g, std::span<const float> b,
               std::span<float> X, std::span<float> Y, std::span<float> Z, size_t count) {
     const size_t size = std::min({r.size(), g.size(), b.size(), X.size(), Y.size(), Z.size(), count});
-    const size_t vectorSize = size & ~3;
+    const size_t vectorSize = size & ~3u;
     
     // sRGB to XYZ matrix coefficients
     float32x4_t r_to_x = vdupq_n_f32(0.4124f);
@@ -160,7 +160,7 @@ void rgbToXyz(std::span<const float> r, std::span<const float> g, std::span<cons
 void xyzToRgb(std::span<const float> X, std::span<const float> Y, std::span<const float> Z,
               std::span<float> r, std::span<float> g, std::span<float> b, size_t count) {
     const size_t size = std::min({X.size(), Y.size(), Z.size(), r.size(), g.size(), b.size(), count});
-    const size_t vectorSize = size & ~3;
+    const size_t vectorSize = size & ~3u;
     
     // XYZ to sRGB matrix coefficients
     float32x4_t x_to_r = vdupq_n_f32(3.2406f);
@@ -259,7 +259,7 @@ void rgbToLab(std::span<const float> r, std::span<const float> g, std::span<cons
     rgbToXyz(r, g, b, X_temp, Y_temp, Z_temp, count);
     
     // Then convert XYZ to Lab
-    const size_t vectorSize = count & ~3;
+    const size_t vectorSize = count & ~3u;
     
     // Reference white constants (D65)
     float32x4_t ref_x = vdupq_n_f32(0.95047f);
@@ -342,7 +342,7 @@ void labToRgb(std::span<const float> L, std::span<const float> a, std::span<cons
     std::vector<float> X_temp(count), Y_temp(count), Z_temp(count);
     
     // First convert Lab to XYZ
-    const size_t vectorSize = count & ~3;
+    const size_t vectorSize = count & ~3u;
     
     // Reference white constants (D65)
     float32x4_t ref_x = vdupq_n_f32(0.95047f);
@@ -428,7 +428,7 @@ void labToRgb(std::span<const float> L, std::span<const float> a, std::span<cons
 
 void frequenciesToWavelengths(std::span<float> wavelengths, std::span<const float> frequencies, size_t count) {
     const size_t size = std::min({wavelengths.size(), frequencies.size(), count});
-    const size_t vectorSize = size & ~3;
+    const size_t vectorSize = size & ~3u;
     
     float32x4_t minFreq = vdupq_n_f32(20.0f);
     float32x4_t maxFreq = vdupq_n_f32(20000.0f);
@@ -485,7 +485,7 @@ void weightedColorBlend(std::span<float> result_L, std::span<float> result_a, st
                        std::span<const float> b_values, std::span<const float> weights, size_t count) {
     const size_t size = std::min({result_L.size(), result_a.size(), result_b.size(), 
                                  L_values.size(), a_values.size(), b_values.size(), weights.size(), count});
-    const size_t vectorSize = size & ~3;
+    const size_t vectorSize = size & ~3u;
     
     float32x4_t L_accum = vdupq_n_f32(0.0f);
     float32x4_t a_accum = vdupq_n_f32(0.0f);
@@ -533,7 +533,7 @@ void weightedColorBlend(std::span<float> result_L, std::span<float> result_a, st
 // Utility vector operations
 void vectorClamp(std::span<float> data, float min_val, float max_val, size_t count) {
     const size_t size = std::min(data.size(), count);
-    const size_t vectorSize = size & ~3;
+    const size_t vectorSize = size & ~3u;
     
     float32x4_t minVec = vdupq_n_f32(min_val);
     float32x4_t maxVec = vdupq_n_f32(max_val);
@@ -553,7 +553,7 @@ void vectorClamp(std::span<float> data, float min_val, float max_val, size_t cou
 
 void vectorPow(std::span<float> data, float exponent, size_t count) {
     const size_t size = std::min(data.size(), count);
-    const size_t vectorSize = size & ~3;
+    const size_t vectorSize = size & ~3u;
     
     size_t i = 0;
     

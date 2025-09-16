@@ -6,7 +6,7 @@ AudioProcessor::AudioProcessor()
 	: writeIndex(0),
 	  readIndex(0),
 	  running(false),
-	  currentColour{0.1f, 0.1f, 0.1f, 0.0f},
+	  currentColour{0.1f, 0.1f, 0.1f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f},
 	  currentDominantFrequency(0.0f) {}
 
 AudioProcessor::~AudioProcessor() { stop(); }
@@ -160,7 +160,7 @@ void AudioProcessor::reset() {
 	zeroCrossingDetector.reset();
 
 	std::lock_guard lock(resultsMutex);
-	currentColour = {0.1f, 0.1f, 0.1f, 0.0f};
+	currentColour = {0.1f, 0.1f, 0.1f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f};
 	currentDominantFrequency = 0.0f;
 	currentPeaks.clear();
 }
