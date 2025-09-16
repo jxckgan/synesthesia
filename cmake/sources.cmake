@@ -12,15 +12,6 @@ set(SOURCES
     ${SRC_DIR}/ui/styling/styling.cpp
     ${SRC_DIR}/ui/spectrum_analyser/spectrum_analyser.cpp
     ${SRC_DIR}/ui.cpp
-    ${IMGUI_DIR}/imgui.cpp
-    ${IMGUI_DIR}/imgui_demo.cpp
-    ${IMGUI_DIR}/imgui_draw.cpp
-    ${IMGUI_DIR}/imgui_tables.cpp
-    ${IMGUI_DIR}/imgui_widgets.cpp
-    ${IMPLOT_DIR}/implot.cpp
-    ${IMPLOT_DIR}/implot_items.cpp
-    ${KISSFFT_DIR}/kiss_fft.c
-    ${KISSFFT_DIR}/kiss_fftr.c
 )
 
 function(add_api_sources)

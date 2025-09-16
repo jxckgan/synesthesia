@@ -9,8 +9,6 @@ if(WIN32)
     message(STATUS "Configuring for Windows (DirectX 12)")
     list(APPEND SOURCES
         ${SRC_DIR}/renderers/dx12/main.cpp
-        ${IMGUI_DIR}/backends/imgui_impl_dx12.cpp
-        ${IMGUI_DIR}/backends/imgui_impl_win32.cpp
         ${SRC_DIR}/renderers/dx12/app.rc
     )
     set(DX12_LIBS d3d12 dxgi d3dcompiler)
@@ -18,8 +16,6 @@ elseif(APPLE)
     message(STATUS "Configuring for macOS (Metal)")
     list(APPEND SOURCES
         ${SRC_DIR}/renderers/metal/main.mm
-        ${IMGUI_DIR}/backends/imgui_impl_metal.mm
-        ${IMGUI_DIR}/backends/imgui_impl_glfw.cpp
     )
     set(OBJC_FLAGS "-ObjC++ -fobjc-arc -fobjc-weak")
 endif()
@@ -60,7 +56,6 @@ elseif(APPLE)
     )
 
     set_source_files_properties(${SRC_DIR}/renderers/metal/main.mm PROPERTIES COMPILE_FLAGS "${OBJC_FLAGS}")
-    set_source_files_properties(${IMGUI_DIR}/backends/imgui_impl_metal.mm PROPERTIES COMPILE_FLAGS "${OBJC_FLAGS}")
 endif()
 
 if(APPLE)
@@ -81,6 +76,10 @@ if(APPLE)
         ${GLFW_TARGET}
         ${PORTAUDIO_TARGET}
         nlohmann_json::nlohmann_json
+        vendor_imgui
+        vendor_implot
+        vendor_kissfft
+        vendor_imgui_backends
         m
     )
 elseif(WIN32)
@@ -89,6 +88,10 @@ elseif(WIN32)
         ${PORTAUDIO_TARGET}
         ${DX12_LIBS}
         nlohmann_json::nlohmann_json
+        vendor_imgui
+        vendor_implot
+        vendor_kissfft
+        vendor_imgui_backends
     )
 else()
     target_link_libraries(${EXECUTABLE_NAME} PRIVATE
@@ -96,6 +99,10 @@ else()
         ${PORTAUDIO_TARGET}
         GL
         nlohmann_json::nlohmann_json
+        vendor_imgui
+        vendor_implot
+        vendor_kissfft
+        vendor_imgui_backends
     )
 endif()
 
