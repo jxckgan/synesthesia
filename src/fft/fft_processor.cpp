@@ -55,7 +55,7 @@ void FFTProcessor::applyWindow(const std::span<const float> buffer) {
 	const size_t copySize = std::min(buffer.size(), static_cast<size_t>(FFT_SIZE));
 	std::ranges::fill(fft_in, 0.0f);
 	
-#ifdef USE_NEON_OPTIMIZATIONS
+#ifdef USE_NEON_OPTIMISATIONS
 	if (FFTProcessorNEON::isNEONAvailable() && copySize >= 4) {
 		FFTProcessorNEON::applyHannWindow(
 			std::span<float>(fft_in.data(), copySize),
@@ -191,7 +191,7 @@ void FFTProcessor::calculateMagnitudes(std::vector<float>& rawMagnitudes, const 
 	maxMagnitude = 0.0f;
 	totalEnergy = 0.0f;
 
-#ifdef USE_NEON_OPTIMIZATIONS
+#ifdef USE_NEON_OPTIMISATIONS
 	if (FFTProcessorNEON::isNEONAvailable() && fft_out.size() >= 4) {
 		// Use optimized SIMD function directly on FFT output
 		FFTProcessorNEON::calculateMagnitudesFromComplex(

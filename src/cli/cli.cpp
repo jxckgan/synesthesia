@@ -55,8 +55,8 @@ void Arguments::printHelp() {
 void Arguments::printVersion() {
     std::cout << "Synesthesia " << SYNESTHESIA_VERSION_STRING << std::endl;
     std::cout << "Built with C++20" << std::endl;
-#ifdef USE_NEON_OPTIMIZATIONS
-    std::cout << "ARM NEON optimizations: Enabled" << std::endl;
+#ifdef USE_NEON_OPTIMISATIONS
+    std::cout << "ARM NEON optimisations: Enabled" << std::endl;
 #endif
 #ifdef ENABLE_API_SERVER
     std::cout << "API Server: Enabled" << std::endl;

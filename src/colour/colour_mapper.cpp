@@ -330,7 +330,7 @@ ColourMapper::ColourResult ColourMapper::frequenciesToColour(
 				}
 				
 				if (validCount > 0) {
-#ifdef USE_NEON_OPTIMIZATIONS
+#ifdef USE_NEON_OPTIMISATIONS
 					if (ColourMapperNEON::isNEONAvailable() && validCount >= 4) {
 						ColourMapperNEON::frequenciesToWavelengths(
 							std::span<float>(wavelengths.data(), validCount),

@@ -4,7 +4,7 @@
 #include <vector>
 #include <cmath>
 
-#ifdef USE_NEON_OPTIMIZATIONS
+#ifdef USE_NEON_OPTIMISATIONS
 #include "colour_mapper_neon.h"
 #endif
 

@@ -7,7 +7,7 @@
 
 #include "kiss_fftr.h"
 
-#ifdef USE_NEON_OPTIMIZATIONS
+#ifdef USE_NEON_OPTIMISATIONS
 #include "fft_processor_neon.h"
 #endif
 
