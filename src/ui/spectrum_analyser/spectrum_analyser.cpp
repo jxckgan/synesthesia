@@ -143,10 +143,10 @@ void SpectrumAnalyser::prepareSpectrumData(std::vector<float>& xData, std::vecto
             float normalisedMagnitude = magnitude;
             
             if (normalisedMagnitude > 0.001f) {
-                normalisedMagnitude = std::log10(1.0f + normalisedMagnitude * 9.0f);
+                normalisedMagnitude = std::log10(1.0f + normalisedMagnitude * 6.0f);
             }
-            
-            yData[i] = std::clamp(normalisedMagnitude, 0.0f, 1.0f);
+
+            yData[i] = std::clamp(normalisedMagnitude, 0.0f, 0.85f);
         }
     } else {
         for (size_t i = 0; i < LINE_COUNT; ++i) {
