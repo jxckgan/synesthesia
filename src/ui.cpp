@@ -15,6 +15,7 @@
 #include "styling.h"
 #include "spectrum_analyser.h"
 #include "device_manager.h"
+#include "system_theme_detector.h"
 #ifdef ENABLE_API_SERVER
 #include "api/synesthesia_api_integration.h"
 #endif
@@ -123,15 +124,31 @@ void updateUI(AudioInput& audioInput, const std::vector<AudioInput::DeviceInfo>&
 				state.spectrumSmoothingFactor * state.smoothedMagnitudes[i];
 		}
 	} else {
+		// Get the current theme to determine the target background color
+		UITheme currentTheme = SystemThemeDetector::isSystemInDarkMode() ? UITheme::Dark : UITheme::Light;
+		float targetColor[3];
+		if (currentTheme == UITheme::Light) {
+			targetColor[0] = 1.0f; // White background for light theme
+			targetColor[1] = 1.0f;
+			targetColor[2] = 1.0f;
+		} else {
+			targetColor[0] = 0.0f; // Black background for dark theme
+			targetColor[1] = 0.0f;
+			targetColor[2] = 0.0f;
+		}
+
 		float decayFactor = std::min(1.0f, deltaTime * UIConstants::COLOUR_DECAY_RATE);
-		clear_color[0] = std::clamp(clear_color[0] * (1.0f - decayFactor), 0.0f, 1.0f);
-		clear_color[1] = std::clamp(clear_color[1] * (1.0f - decayFactor), 0.0f, 1.0f);
-		clear_color[2] = std::clamp(clear_color[2] * (1.0f - decayFactor), 0.0f, 1.0f);
+		clear_color[0] = std::clamp(clear_color[0] * (1.0f - decayFactor) + targetColor[0] * decayFactor, 0.0f, 1.0f);
+		clear_color[1] = std::clamp(clear_color[1] * (1.0f - decayFactor) + targetColor[1] * decayFactor, 0.0f, 1.0f);
+		clear_color[2] = std::clamp(clear_color[2] * (1.0f - decayFactor) + targetColor[2] * decayFactor, 0.0f, 1.0f);
 	}
 
 	if (state.showUI) {
 		ImGuiStyle& style = ImGui::GetStyle();
-		UIStyler::applyCustomStyle(style, state.styleState);
+
+		// Detect system theme and apply appropriate styling
+		UITheme currentTheme = SystemThemeDetector::isSystemInDarkMode() ? UITheme::Dark : UITheme::Light;
+		UIStyler::applyCustomStyleWithTheme(style, state.styleState, currentTheme);
 
 		ImVec2 displaySize = io.DisplaySize;
 

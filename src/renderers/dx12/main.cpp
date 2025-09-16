@@ -3,6 +3,7 @@
 #include "fft_processor.h"
 #include "ui.h"
 #include "resource.h"
+#include "system_theme_detector.h"
 
 #include "imgui.h"
 #include "imgui_impl_win32.h"
@@ -127,7 +128,8 @@ int app_main(int, char**)
     ::RegisterClassExW(&wc);
     HWND hwnd = ::CreateWindowW(wc.lpszClassName, L"Synesthesia", WS_OVERLAPPEDWINDOW, 100, 100, 1280, 800, nullptr, nullptr, wc.hInstance, nullptr);
 
-    BOOL darkMode = TRUE;
+    SystemTheme theme = SystemThemeDetector::detectSystemTheme();
+    BOOL darkMode = (theme == SystemTheme::Dark) ? TRUE : FALSE;
     ::DwmSetWindowAttribute(
         hwnd,
         DWMWA_USE_IMMERSIVE_DARK_MODE,
@@ -135,7 +137,7 @@ int app_main(int, char**)
         sizeof(darkMode)
     );
 
-    COLORREF captionColor = RGB(0, 0, 0);
+    COLORREF captionColor = (theme == SystemTheme::Dark) ? RGB(0, 0, 0) : RGB(255, 255, 255);
     ::DwmSetWindowAttribute(
         hwnd,
         DWMWA_CAPTION_COLOR,
@@ -175,7 +177,12 @@ int app_main(int, char**)
     init_info.SrvDescriptorFreeFn = [](ImGui_ImplDX12_InitInfo*, D3D12_CPU_DESCRIPTOR_HANDLE cpu_handle, D3D12_GPU_DESCRIPTOR_HANDLE gpu_handle)            { return g_pd3dSrvDescHeapAlloc.Free(cpu_handle, gpu_handle); };
     ImGui_ImplDX12_Init(&init_info);
 
-    ImVec4 clear_color = ImVec4(0.1f, 0.1f, 0.1f, 1.0f);
+    ImVec4 clear_color;
+    if (theme == SystemTheme::Light) {
+        clear_color = ImVec4(1.0f, 1.0f, 1.0f, 1.0f);
+    } else {
+        clear_color = ImVec4(0.0f, 0.0f, 0.0f, 1.0f);
+    }
 
     AudioInput audioInput;
     std::vector<AudioInput::DeviceInfo> devices = audioInput.getInputDevices();

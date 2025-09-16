@@ -42,6 +42,7 @@ function(configure_include_directories)
         ${SRC_DIR}/ui/updating
         ${SRC_DIR}/ui/smoothing
         ${SRC_DIR}/ui/styling
+        ${SRC_DIR}/ui/styling/system_theme
         ${SRC_DIR}/ui/spectrum_analyser
         ${SRC_DIR}/zero_crossing
         ${SRC_DIR}/cli

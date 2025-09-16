@@ -2,6 +2,7 @@
 #include "colour_mapper.h"
 #include "fft_processor.h"
 #include "ui.h"
+#include "system_theme_detector.h"
 
 #include "imgui.h"
 #include "imgui_impl_glfw.h"
@@ -26,18 +27,23 @@ static void glfw_error_callback(int error, const char* description) {
 
 void windowStyling(GLFWwindow* window) {
     NSWindow* nsWindow = glfwGetCocoaWindow(window);
-    
+
     nsWindow.styleMask |= NSWindowStyleMaskFullSizeContentView;
     nsWindow.titlebarAppearsTransparent = YES;
     nsWindow.titleVisibility = NSWindowTitleHidden;
-    
+
     nsWindow.opaque = NO;
     nsWindow.backgroundColor = [NSColor clearColor];
-    
+
     NSVisualEffectView* visualEffectView = [[NSVisualEffectView alloc] init];
-    visualEffectView.material = NSVisualEffectMaterialUnderWindowBackground;
+    if (@available(macOS 10.14, *)) {
+        visualEffectView.material = NSVisualEffectMaterialUnderWindowBackground;
+    } else {
+        visualEffectView.material = NSVisualEffectMaterialTitlebar;
+    }
+
     visualEffectView.blendingMode = NSVisualEffectBlendingModeBehindWindow;
-    visualEffectView.state = NSVisualEffectStateActive;
+    visualEffectView.state = NSVisualEffectStateFollowsWindowActiveState;
     
     NSView* originalContentView = nsWindow.contentView;
     nsWindow.contentView = visualEffectView;
@@ -52,13 +58,30 @@ void windowStyling(GLFWwindow* window) {
     ]];
     
     [nsWindow invalidateShadow];
-    
+
     CABasicAnimation* scaleAnimation = [CABasicAnimation animationWithKeyPath:@"transform.scale"];
     scaleAnimation.fromValue = @0.95;
     scaleAnimation.toValue = @1.0;
     scaleAnimation.duration = 0.3;
     scaleAnimation.timingFunction = [CAMediaTimingFunction functionWithName:kCAMediaTimingFunctionEaseOut];
     [visualEffectView.layer addAnimation:scaleAnimation forKey:@"windowAppear"];
+}
+
+void getThemeBackgroundColor(float* color) {
+    SystemTheme theme = SystemThemeDetector::detectSystemTheme();
+    if (theme == SystemTheme::Light) {
+        // Light theme background
+        color[0] = 1.00f;
+        color[1] = 1.00f;
+        color[2] = 1.00f;
+        color[3] = 1.00f;
+    } else {
+        // Dark theme background
+        color[0] = 0.00f;
+        color[1] = 0.00f;
+        color[2] = 0.00f;
+        color[3] = 1.00f;
+    }
 }
 
 int app_main(int, char**) {
@@ -109,11 +132,12 @@ int app_main(int, char**) {
     AudioInput audioInput;
     std::vector<AudioInput::DeviceInfo> devices = AudioInput::getInputDevices();
 
-    float clear_color[4] = {0.05f, 0.05f, 0.05f, 0.85f};
+    float clear_color[4];
+    getThemeBackgroundColor(clear_color);
 
     UIState uiState;
 
-    // Frame rate limiting: 120 FPS = ~8.33ms per frame
+    // 120fps cap
     constexpr auto target_frame_duration = std::chrono::microseconds(8333);
 
     while (!glfwWindowShouldClose(window)) {
@@ -126,7 +150,7 @@ int app_main(int, char**) {
             metalLayer.drawableSize = CGSizeMake(width, height);
             id<CAMetalDrawable> drawable = [metalLayer nextDrawable];
 
-            if (!drawable) continue; // Skip frame if drawable is not available
+            if (!drawable) continue;
 
             id<MTLCommandBuffer> commandBuffer = [commandQueue commandBuffer];
 
@@ -158,7 +182,6 @@ int app_main(int, char**) {
             [commandBuffer commit];
         }
 
-        // Frame rate limiting
         auto frame_end = std::chrono::steady_clock::now();
         auto frame_duration = frame_end - frame_start;
         if (frame_duration < target_frame_duration) {

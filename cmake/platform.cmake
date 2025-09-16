@@ -10,14 +10,20 @@ if(WIN32)
     list(APPEND SOURCES
         ${SRC_DIR}/renderers/dx12/main.cpp
         ${SRC_DIR}/renderers/dx12/app.rc
+        ${SRC_DIR}/ui/styling/system_theme/system_theme_detector.cpp
     )
     set(DX12_LIBS d3d12 dxgi d3dcompiler)
 elseif(APPLE)
     message(STATUS "Configuring for macOS (Metal)")
     list(APPEND SOURCES
         ${SRC_DIR}/renderers/metal/main.mm
+        ${SRC_DIR}/ui/styling/system_theme/system_theme_detector.mm
     )
     set(OBJC_FLAGS "-ObjC++ -fobjc-arc -fobjc-weak")
+else()
+    list(APPEND SOURCES
+        ${SRC_DIR}/ui/styling/system_theme/system_theme_detector.cpp
+    )
 endif()
 
 if(APPLE)
@@ -62,6 +68,7 @@ elseif(APPLE)
     )
 
     set_source_files_properties(${SRC_DIR}/renderers/metal/main.mm PROPERTIES COMPILE_FLAGS "${OBJC_FLAGS}")
+    set_source_files_properties(${SRC_DIR}/ui/styling/system_theme/system_theme_detector.mm PROPERTIES COMPILE_FLAGS "${OBJC_FLAGS}")
     set_source_files_properties(${SRC_DIR}/ui/updating/update.cpp PROPERTIES COMPILE_FLAGS "-Wno-nan-infinity-disabled")
 
     set_property(SOURCE ${SRC_DIR}/ui/controls/controls.cpp APPEND PROPERTY COMPILE_OPTIONS "-Wno-c99-extensions")
@@ -107,6 +114,7 @@ elseif(WIN32)
         vendor_implot
         vendor_kissfft
         vendor_imgui_backends
+        windowsapp
     )
 else()
     target_link_libraries(${EXECUTABLE_NAME} PRIVATE
