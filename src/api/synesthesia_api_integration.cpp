@@ -78,7 +78,7 @@ void SynesthesiaAPIIntegration::updateColourData(const std::vector<float>& frequ
         auto duration = std::chrono::duration_cast<std::chrono::microseconds>(
             std::chrono::steady_clock::now().time_since_epoch()
         ).count();
-        last_timestamp_ = static_cast<uint64_t>(std::max(duration, 0LL));
+        last_timestamp_ = static_cast<uint64_t>(std::max(duration, static_cast<decltype(duration)>(0)));
     }
 }
 
@@ -154,7 +154,7 @@ void SynesthesiaAPIIntegration::updateFinalColour(float r, float g, float b,
         auto duration = std::chrono::duration_cast<std::chrono::microseconds>(
             std::chrono::steady_clock::now().time_since_epoch()
         ).count();
-        last_timestamp_ = static_cast<uint64_t>(std::max(duration, 0LL));
+        last_timestamp_ = static_cast<uint64_t>(std::max(duration, static_cast<decltype(duration)>(0)));
     }
 }
 

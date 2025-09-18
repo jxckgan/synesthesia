@@ -5,7 +5,6 @@ if(CMAKE_VERSION VERSION_GREATER_EQUAL 3.5)
     set(CMAKE_POLICY_DEFAULT_CMP0048 NEW)
 endif()
 
-# Include vendor configuration functions
 include(cmake/vendor.cmake)
 
 if(EXISTS "${GLFW_DIR}/CMakeLists.txt")
@@ -32,4 +31,12 @@ if(EXISTS "${PORTAUDIO_DIR}/CMakeLists.txt")
     else()
         message(FATAL_ERROR "PortAudio target not found in ${PORTAUDIO_DIR}")
     endif()
+endif()
+
+if(UNIX AND NOT APPLE)
+    find_package(Vulkan REQUIRED)
+    message(STATUS "Found Vulkan: ${Vulkan_LIBRARIES}")
+    
+    find_package(ALSA REQUIRED)
+    message(STATUS "Found ALSA: ${ALSA_LIBRARIES}")
 endif()

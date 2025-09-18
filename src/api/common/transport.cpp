@@ -4,6 +4,7 @@
 #include <sys/un.h>
 #include <unistd.h>
 #include <fcntl.h>
+#include <poll.h>
 #include <thread>
 #include <atomic>
 #include <vector>
@@ -135,30 +136,41 @@ private:
     }
     
     void serverLoop() {
-        fd_set read_fds;
-        int max_fd = server_fd_;
-        
         while (running_.load()) {
-            FD_ZERO(&read_fds);
-            FD_SET(server_fd_, &read_fds);
-            
+            // Build poll file descriptor array
+            std::vector<pollfd> poll_fds;
+            poll_fds.reserve(1 + client_sockets_.size());
+
+            // Add server socket
+            poll_fds.push_back({server_fd_, POLLIN, 0});
+
+            // Add client sockets
             for (const auto& [id, fd] : client_sockets_) {
-                FD_SET(fd, &read_fds);
-                max_fd = std::max(max_fd, fd);
+                poll_fds.push_back({fd, POLLIN, 0});
             }
-            
-            struct timeval timeout{0, 100000};
-            int activity = select(max_fd + 1, &read_fds, nullptr, nullptr, &timeout);
-            
+
+            // Poll with 100ms timeout
+            int activity = poll(poll_fds.data(), poll_fds.size(), 100);
+
             if (activity < 0) break;
             if (activity == 0) continue;
-            
-            if (FD_ISSET(server_fd_, &read_fds)) {
+
+            // Check server socket for new connections
+            if (poll_fds[0].revents & POLLIN) {
                 acceptNewClient();
             }
-            
+
+            // Check client sockets for data
             for (auto it = client_sockets_.begin(); it != client_sockets_.end();) {
-                if (FD_ISSET(it->second, &read_fds)) {
+                bool found_activity = false;
+                for (size_t i = 1; i < poll_fds.size(); ++i) {
+                    if (poll_fds[i].fd == it->second && (poll_fds[i].revents & POLLIN)) {
+                        found_activity = true;
+                        break;
+                    }
+                }
+
+                if (found_activity) {
                     if (!handleClientData(it->first, it->second)) {
                         if (connection_callback_) {
                             connection_callback_(it->first, false);
@@ -177,19 +189,17 @@ private:
     void clientLoop() {
         std::vector<uint8_t> message_buffer;
         message_buffer.reserve(4096);
-        
+
         while (running_.load()) {
-            fd_set read_fds;
-            FD_ZERO(&read_fds);
-            FD_SET(server_fd_, &read_fds);
-            
-            struct timeval timeout{0, 100000};
-            int activity = select(server_fd_ + 1, &read_fds, nullptr, nullptr, &timeout);
-            
+            pollfd poll_fd = {server_fd_, POLLIN, 0};
+
+            // Poll with 100ms timeout
+            int activity = poll(&poll_fd, 1, 100);
+
             if (activity < 0) break;
             if (activity == 0) continue;
-            
-            if (FD_ISSET(server_fd_, &read_fds)) {
+
+            if (poll_fd.revents & POLLIN) {
                 if (!receiveMessage(server_fd_, message_buffer, "server")) {
                     break;
                 }

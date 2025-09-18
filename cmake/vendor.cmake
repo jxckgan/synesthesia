@@ -82,6 +82,17 @@ elseif(APPLE)
         ${IMGUI_DIR}/backends/imgui_impl_metal.mm
         PROPERTIES COMPILE_FLAGS "-ObjC++ -fobjc-arc -fobjc-weak -w"
     )
+else()
+    add_vendor_library(
+        TARGET vendor_imgui_backends
+        SOURCES
+            ${IMGUI_DIR}/backends/imgui_impl_vulkan.cpp
+            ${IMGUI_DIR}/backends/imgui_impl_glfw.cpp
+        INCLUDE_DIRS
+            ${IMGUI_DIR}
+            ${IMGUI_DIR}/backends
+            ${GLFW_DIR}/include
+    )
 endif()
 
 function(add_vendor_subdirectory directory target_name)

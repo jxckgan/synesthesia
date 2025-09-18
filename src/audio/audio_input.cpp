@@ -4,6 +4,26 @@
 #include <iostream>
 #include <stdexcept>
 
+#ifdef __linux__
+#include <alsa/asoundlib.h>
+#include <cstdio>
+
+static void suppress_alsa_errors(const char* file, int line, const char* function, int err, const char* fmt, ...) {
+    (void)file; (void)line; (void)function; (void)err; (void)fmt;
+}
+
+class ALSAErrorSuppressor {
+public:
+    ALSAErrorSuppressor() {
+        snd_lib_error_set_handler(suppress_alsa_errors);
+    }
+
+    ~ALSAErrorSuppressor() {
+        snd_lib_error_set_handler(nullptr);
+    }
+};
+#endif
+
 AudioInput::AudioInput()
 	: stream(nullptr),
 	  sampleRate(44100.0f),
@@ -14,6 +34,9 @@ AudioInput::AudioInput()
 	previousInputs.push_back(0.0f);
 	previousOutputs.push_back(0.0f);
 
+#ifdef __linux__
+	ALSAErrorSuppressor suppressor;
+#endif
 	if (const PaError err = Pa_Initialize(); err != paNoError) {
 		throw std::runtime_error("PortAudio initialisation failed: " +
 								 std::string(Pa_GetErrorText(err)));
@@ -31,6 +54,11 @@ AudioInput::~AudioInput() {
 
 std::vector<AudioInput::DeviceInfo> AudioInput::getInputDevices() {
 	std::vector<DeviceInfo> devices;
+
+#ifdef __linux__
+	ALSAErrorSuppressor suppressor;
+#endif
+
 	const int deviceCount = Pa_GetDeviceCount();
 
 	if (deviceCount < 0) {

@@ -1,4 +1,4 @@
-#ifdef __APPLE__
+#if defined(__APPLE__) || defined(__linux__)
 #include "cli/cli.h"
 #include "cli/headless.h"
 #endif
@@ -8,19 +8,19 @@
 int app_main(int argc, char** argv);
 
 int main(int argc, char* argv[]) {
-#ifdef __APPLE__
+#if defined(__APPLE__) || defined(__linux__)
     CLI::Arguments args = CLI::Arguments::parseCommandLine(argc, argv);
-    
+
     if (args.showHelp) {
         CLI::Arguments::printHelp();
         return 0;
     }
-    
+
     if (args.showVersion) {
         CLI::Arguments::printVersion();
         return 0;
     }
-    
+
     if (args.headless) {
         try {
             CLI::HeadlessInterface interface;
@@ -32,6 +32,6 @@ int main(int argc, char* argv[]) {
         }
     }
 #endif
-    
+
     return app_main(argc, argv);
 }

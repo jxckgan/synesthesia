@@ -21,17 +21,23 @@ elseif(APPLE)
     )
     set(OBJC_FLAGS "-ObjC++ -fobjc-arc -fobjc-weak")
 else()
+    message(STATUS "Configuring for Linux (Vulkan)")
     list(APPEND SOURCES
+        ${SRC_DIR}/renderers/vulkan/main.cpp
         ${SRC_DIR}/ui/styling/system_theme/system_theme_detector.cpp
     )
 endif()
 
-if(APPLE)
+if(APPLE OR UNIX)
     list(APPEND SOURCES
         ${SRC_DIR}/cli/cli.cpp
         ${SRC_DIR}/cli/headless.cpp
     )
-    message(STATUS "Added CLI sources to build for macOS")
+    if(APPLE)
+        message(STATUS "Added CLI sources to build for macOS")
+    else()
+        message(STATUS "Added CLI sources to build for Linux")
+    endif()
 endif()
 
 if(WIN32)
@@ -78,6 +84,11 @@ elseif(APPLE)
     set_property(SOURCE ${SRC_DIR}/api/server/api_server.cpp APPEND PROPERTY COMPILE_OPTIONS "-Wno-c99-extensions")
     set_property(SOURCE ${SRC_DIR}/api/synesthesia_api_integration.cpp APPEND PROPERTY COMPILE_OPTIONS "-Wno-c99-extensions")
     set_property(SOURCE ${SRC_DIR}/cli/headless.cpp APPEND PROPERTY COMPILE_OPTIONS "-Wno-c99-extensions")
+else()
+    target_compile_options(${EXECUTABLE_NAME} PRIVATE
+        "-Wall" "-Wextra" "-Wformat" "-Wpedantic"
+        "-O3" "-ffast-math" "-march=native"
+    )
 endif()
 
 if(APPLE)
@@ -120,12 +131,16 @@ else()
     target_link_libraries(${EXECUTABLE_NAME} PRIVATE
         ${GLFW_TARGET}
         ${PORTAUDIO_TARGET}
-        GL
+        Vulkan::Vulkan
+        ${ALSA_LIBRARIES}
         nlohmann_json::nlohmann_json
         vendor_imgui
         vendor_implot
         vendor_kissfft
         vendor_imgui_backends
+        dl
+        pthread
+        m
     )
 endif()
 

@@ -29,8 +29,8 @@ def main():
     client.set_error_callback(on_error)
     
     print("[!] Discovering Synesthesia server...")
-    
-    if client.discover_or_assume_server():
+
+    if client.find_server():
         print("[!] Server found! Connecting...")
         
         if client.connect():

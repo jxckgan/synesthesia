@@ -10,6 +10,7 @@
 #include <string>
 #include <functional>
 #include <chrono>
+#include <condition_variable>
 
 namespace Synesthesia::API {
 

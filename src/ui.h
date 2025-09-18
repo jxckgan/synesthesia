@@ -39,14 +39,12 @@ struct UIState {
     // UI state
     bool showAdvancedSettings = false;
     bool showAPISettings = false;
-    bool sidebarOnLeft = false; // false = right side (default), true = left side
-    
-    // API state
+    bool sidebarOnLeft = false;
     bool apiServerEnabled = false;
-    
-    // Smoothing control
     bool smoothingEnabled = true;
 };
+
+void initialiseApp(UIState& state);
 
 void updateUI(AudioInput &audioInput,
               const std::vector<AudioInput::DeviceInfo>& devices,

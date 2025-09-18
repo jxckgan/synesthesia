@@ -389,7 +389,7 @@ uint64_t MessageDeserialiser::getCurrentTimestamp() {
     auto duration = std::chrono::duration_cast<std::chrono::microseconds>(
         std::chrono::steady_clock::now().time_since_epoch()
     ).count();
-    return static_cast<uint64_t>(std::max(duration, 0LL));
+    return static_cast<uint64_t>(std::max(duration, static_cast<decltype(duration)>(0)));
 }
 
 }
