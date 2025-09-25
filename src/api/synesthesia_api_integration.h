@@ -25,13 +25,8 @@ public:
     void stopServer();
     bool isServerRunning() const;
     
-    void updateColourData(const std::vector<float>& frequencies, 
-                        const std::vector<float>& magnitudes,
-                        uint32_t sample_rate,
-                        uint32_t fft_size);
-    
-    void updateFinalColour(float r, float g, float b, 
-                         const std::vector<float>& frequencies, 
+    void updateFinalColour(float r, float g, float b,
+                         const std::vector<float>& frequencies,
                          const std::vector<float>& magnitudes,
                          uint32_t sample_rate,
                          uint32_t fft_size);
@@ -43,7 +38,6 @@ public:
     std::vector<std::string> getConnectedClients() const;
     size_t getLastDataSize() const;
     
-    // Performance monitoring
     uint32_t getCurrentFPS() const;
     bool isHighPerformanceMode() const;
     float getAverageFrameTime() const;
@@ -52,12 +46,6 @@ public:
     static SynesthesiaAPIIntegration& getInstance();
 
 private:
-    std::vector<API::ColourData> convertToColourData(const std::vector<float>& frequencies,
-                                                  const std::vector<float>& magnitudes,
-                                                  uint32_t sample_rate);
-    
-    API::ColourData frequencyToColourData(float frequency, float magnitude, uint32_t sample_rate);
-    
     std::unique_ptr<API::APIServer> api_server_;
     std::unique_ptr<ColourMapper> colour_mapper_;
     

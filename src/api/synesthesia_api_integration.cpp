@@ -21,8 +21,6 @@ bool SynesthesiaAPIIntegration::startServer(const API::ServerConfig& config) {
     }
     
     api_server_ = std::make_unique<API::APIServer>(config);
-    
-    // Set up the colour data provider callback
     api_server_->setColourDataProvider([this](uint32_t& sample_rate, uint32_t& fft_size, uint64_t& timestamp) -> std::vector<API::ColourData> {
         std::lock_guard<std::mutex> lock(data_mutex_);
         sample_rate = last_sample_rate_;
@@ -31,12 +29,10 @@ bool SynesthesiaAPIIntegration::startServer(const API::ServerConfig& config) {
         return last_colour_data_;
     });
     
-    // Set up the config update callback
     api_server_->setConfigUpdateCallback([this](const API::ConfigUpdate& config) {
         updateSmoothingConfig(config.smoothing_enabled != 0, config.smoothing_factor);
         updateFrequencyRange(config.frequency_range_min, config.frequency_range_max);
         
-        // Map colour space values
         ColourSpace space = ColourSpace::RGB;
         switch (config.colour_space) {
             case 0: space = ColourSpace::RGB; break;
@@ -60,27 +56,6 @@ bool SynesthesiaAPIIntegration::isServerRunning() const {
     return api_server_ && api_server_->isRunning();
 }
 
-void SynesthesiaAPIIntegration::updateColourData(const std::vector<float>& frequencies,
-                                               const std::vector<float>& magnitudes,
-                                               uint32_t sample_rate,
-                                               uint32_t fft_size) {
-    if (!api_server_ || !api_server_->isRunning()) {
-        return;
-    }
-    
-    auto colour_data = convertToColourData(frequencies, magnitudes, sample_rate);
-    
-    {
-        std::lock_guard<std::mutex> lock(data_mutex_);
-        last_colour_data_ = std::move(colour_data);
-        last_sample_rate_ = sample_rate;
-        last_fft_size_ = fft_size;
-        auto duration = std::chrono::duration_cast<std::chrono::microseconds>(
-            std::chrono::steady_clock::now().time_since_epoch()
-        ).count();
-        last_timestamp_ = static_cast<uint64_t>(std::max(duration, static_cast<decltype(duration)>(0)));
-    }
-}
 
 void SynesthesiaAPIIntegration::updateFinalColour(float r, float g, float b,
                                                 const std::vector<float>& frequencies, 
@@ -91,7 +66,6 @@ void SynesthesiaAPIIntegration::updateFinalColour(float r, float g, float b,
         return;
     }
     
-    // Create colour data using the final processed colours instead of raw conversion
     std::vector<API::ColourData> colour_data;
     
     size_t data_size = std::min(frequencies.size(), magnitudes.size());
@@ -115,16 +89,15 @@ void SynesthesiaAPIIntegration::updateFinalColour(float r, float g, float b,
         data.phase = 0.0f;
         data.wavelength = ColourMapper::logFrequencyToWavelength(frequency);
         
-        // Use the final processed colours scaled by magnitude
         float scale = std::min(magnitude * 2.0f, 1.0f);
-        
+
         switch (current_colour_space_) {
             case ColourSpace::RGB:
                 data.r = r * scale;
                 data.g = g * scale;
                 data.b = b * scale;
                 break;
-                
+
             case ColourSpace::LAB: {
                 float L, a, b_comp;
                 ColourMapper::RGBtoLab(r * scale, g * scale, b * scale, L, a, b_comp);
@@ -133,7 +106,7 @@ void SynesthesiaAPIIntegration::updateFinalColour(float r, float g, float b,
                 data.b = b_comp;
                 break;
             }
-            
+
             case ColourSpace::XYZ: {
                 // Fall back to RGB for now
                 data.r = r * scale;
@@ -223,104 +196,5 @@ SynesthesiaAPIIntegration& SynesthesiaAPIIntegration::getInstance() {
     return *instance_;
 }
 
-std::vector<API::ColourData> SynesthesiaAPIIntegration::convertToColourData(const std::vector<float>& frequencies,
-                                                                         const std::vector<float>& magnitudes,
-                                                                         uint32_t sample_rate) {
-    std::vector<API::ColourData> colour_data;
-    
-    size_t data_size = std::min(frequencies.size(), magnitudes.size());
-    colour_data.reserve(data_size);
-    
-    for (size_t i = 0; i < data_size; ++i) {
-        float frequency = frequencies[i];
-        float magnitude = magnitudes[i];
-        
-        if (frequency < frequency_range_min_ || frequency > frequency_range_max_) {
-            continue;
-        }
-        
-        if (magnitude < 0.001f) {
-            continue;
-        }
-        
-        colour_data.push_back(frequencyToColourData(frequency, magnitude, sample_rate));
-    }
-    
-    return colour_data;
-}
-
-API::ColourData SynesthesiaAPIIntegration::frequencyToColourData(float frequency, float magnitude, uint32_t /* sample_rate */) {
-    API::ColourData data{};
-    data.frequency = frequency;
-    data.magnitude = magnitude;
-    data.phase = 0.0f; // Phase information not currently used
-    
-    // Convert frequency to wavelength using ColourMapper static method
-    data.wavelength = ColourMapper::logFrequencyToWavelength(frequency);
-    
-    // Get RGB colour from wavelength (simplified approach)
-    float r, g, b;
-    // Use a simple approach since we don't have direct wavelengthToColour method
-    // This maps wavelength to visible spectrum colours
-    if (data.wavelength < 380.0f || data.wavelength > 780.0f) {
-        r = g = b = 0.0f;
-    } else {
-        // Simple wavelength to RGB mapping for visible spectrum
-        if (data.wavelength < 440.0f) {
-            r = (440.0f - data.wavelength) / 60.0f;
-            g = 0.0f;
-            b = 1.0f;
-        } else if (data.wavelength < 490.0f) {
-            r = 0.0f;
-            g = (data.wavelength - 440.0f) / 50.0f;
-            b = 1.0f;
-        } else if (data.wavelength < 510.0f) {
-            r = 0.0f;
-            g = 1.0f;
-            b = (510.0f - data.wavelength) / 20.0f;
-        } else if (data.wavelength < 580.0f) {
-            r = (data.wavelength - 510.0f) / 70.0f;
-            g = 1.0f;
-            b = 0.0f;
-        } else if (data.wavelength < 645.0f) {
-            r = 1.0f;
-            g = (645.0f - data.wavelength) / 65.0f;
-            b = 0.0f;
-        } else {
-            r = 1.0f;
-            g = 0.0f;
-            b = 0.0f;
-        }
-    }
-    
-    float scale = std::min(magnitude * 2.0f, 1.0f);
-    
-    switch (current_colour_space_) {
-        case ColourSpace::RGB:
-            data.r = r * scale;
-            data.g = g * scale;
-            data.b = b * scale;
-            break;
-            
-        case ColourSpace::LAB: {
-            float L, a, b_comp;
-            ColourMapper::RGBtoLab(r * scale, g * scale, b * scale, L, a, b_comp);
-            data.r = L;  // Store Lab values in r,g,b fields
-            data.g = a;
-            data.b = b_comp;
-            break;
-        }
-        
-        case ColourSpace::XYZ: {
-            // XYZ conversion methods are private, so fall back to RGB for now
-            data.r = r * scale;
-            data.g = g * scale;
-            data.b = b * scale;
-            break;
-        }
-    }
-    
-    return data;
-}
 
 }
