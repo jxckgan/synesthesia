@@ -32,7 +32,7 @@ jobs:
 
       - name: Install dependencies
         run: |
-          brew uninstall cmake; brew untap local/pinned; brew install cmake # temporary workaround to github actions bug (https://github.com/actions/runner-images/issues/12912)
+          brew install cmake
 
       - name: Create build directory
         run: mkdir build
