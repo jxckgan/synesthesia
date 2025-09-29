@@ -29,6 +29,6 @@
     <key>NSSupportsAutomaticGraphicsSwitching</key>
     <true/>
     <key>NSMicrophoneUsageDescription</key>
-    <string>Synesthesia needs microphone access to analyze audio and create visual effects based on sound input.</string>
+    <string>Synesthesia requires microphone access to analyse audio in order to translate them to colour.</string>
 </dict>
 </plist>
