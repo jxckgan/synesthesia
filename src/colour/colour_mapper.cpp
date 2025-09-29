@@ -56,6 +56,21 @@ void ColourMapper::XYZtoRGB(const float X, const float Y, const float Z, float& 
 	b = std::clamp(gammaCorrect(b), 0.0f, 1.0f);
 }
 
+void ColourMapper::XYZtoRGB_P3(const float X, const float Y, const float Z, float& r, float& g,
+								float& b) {
+	r = 2.4040f * X - 0.9899f * Y - 0.3976f * Z;
+	g = -0.8422f * X + 1.7988f * Y + 0.0160f * Z;
+	b = 0.0482f * X - 0.0974f * Y + 1.2740f * Z;
+
+	auto gammaCorrect = [](const float c) {
+		return c <= 0.0031308f ? 12.92f * c : 1.055f * std::pow(c, 1.0f / 2.4f) - 0.055f;
+	};
+
+	r = std::clamp(gammaCorrect(r), 0.0f, 1.0f);
+	g = std::clamp(gammaCorrect(g), 0.0f, 1.0f);
+	b = std::clamp(gammaCorrect(b), 0.0f, 1.0f);
+}
+
 void ColourMapper::RGBtoXYZ(float r, float g, float b, float& X, float& Y, float& Z) {
 	r = std::clamp(r, 0.0f, 1.0f);
 	g = std::clamp(g, 0.0f, 1.0f);
@@ -72,6 +87,24 @@ void ColourMapper::RGBtoXYZ(float r, float g, float b, float& X, float& Y, float
 	X = 0.4124f * r_linear + 0.3576f * g_linear + 0.1805f * b_linear;
 	Y = 0.2126f * r_linear + 0.7152f * g_linear + 0.0722f * b_linear;
 	Z = 0.0193f * r_linear + 0.1192f * g_linear + 0.9505f * b_linear;
+}
+
+void ColourMapper::RGBtoXYZ_P3(float r, float g, float b, float& X, float& Y, float& Z) {
+	r = std::clamp(r, 0.0f, 1.0f);
+	g = std::clamp(g, 0.0f, 1.0f);
+	b = std::clamp(b, 0.0f, 1.0f);
+
+	auto inverseGamma = [](const float c) {
+		return c <= 0.04045f ? c / 12.92f : std::pow((c + 0.055f) / 1.055f, 2.4f);
+	};
+
+	const float r_linear = inverseGamma(r);
+	const float g_linear = inverseGamma(g);
+	const float b_linear = inverseGamma(b);
+
+	X = 0.5151f * r_linear + 0.292f * g_linear + 0.1571f * b_linear;
+	Y = 0.2412f * r_linear + 0.6922f * g_linear + 0.0666f * b_linear;
+	Z = -0.0011f * r_linear + 0.0419f * g_linear + 0.7841f * b_linear;
 }
 
 void ColourMapper::XYZtoLab(const float X, const float Y, const float Z, float& L, float& a,
@@ -137,14 +170,19 @@ void ColourMapper::LabtoRGB(const float L, const float a, const float b_comp, fl
 	XYZtoRGB(X, Y, Z, r, g, b);
 }
 
-void ColourMapper::wavelengthToRGBCIE(float wavelength, float& r, float& g, float& b) {
+void ColourMapper::wavelengthToRGBCIE(float wavelength, float& r, float& g, float& b, bool useP3) {
 	if (!std::isfinite(wavelength)) {
 		wavelength = MIN_WAVELENGTH;
 	}
 
 	float X, Y, Z;
 	interpolateCIE(wavelength, X, Y, Z);
-	XYZtoRGB(X, Y, Z, r, g, b);
+
+	if (useP3) {
+		XYZtoRGB_P3(X, Y, Z, r, g, b);
+	} else {
+		XYZtoRGB(X, Y, Z, r, g, b);
+	}
 }
 
 float ColourMapper::logFrequencyToWavelength(const float freq) {
@@ -246,7 +284,7 @@ ColourMapper::SpectralCharacteristics ColourMapper::calculateSpectralCharacteris
 
 ColourMapper::ColourResult ColourMapper::frequenciesToColour(
 	const std::vector<float>& frequencies, const std::vector<float>& magnitudes,
-	const std::vector<float>& spectralEnvelope, float sampleRate, float gamma) {
+	const std::vector<float>& spectralEnvelope, float sampleRate, float gamma, bool useP3) {
 	ColourResult result{0.1f, 0.1f, 0.1f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f};
 
 	bool hasPeaks = !frequencies.empty() && !magnitudes.empty();
@@ -339,7 +377,7 @@ ColourMapper::ColourResult ColourMapper::frequenciesToColour(
 						);
 
 						for (size_t i = 0; i < validFreqCount; ++i) {
-							wavelengthToRGBCIE(wavelengths[i], r_values[i], g_values[i], b_values[i]);
+							wavelengthToRGBCIE(wavelengths[i], r_values[i], g_values[i], b_values[i], useP3);
 						}
 
 						ColourMapperNEON::rgbToLab(
@@ -349,7 +387,8 @@ ColourMapper::ColourResult ColourMapper::frequenciesToColour(
 							std::span<float>(L_values.data(), validFreqCount),
 							std::span<float>(a_values.data(), validFreqCount),
 							std::span<float>(b_comp_values.data(), validFreqCount),
-							validFreqCount
+							validFreqCount,
+							useP3
 						);
 
 						for (size_t i = 0; i < validFreqCount; ++i) {
@@ -364,7 +403,7 @@ ColourMapper::ColourResult ColourMapper::frequenciesToColour(
 							float wavelength = logFrequencyToWavelength(validFrequencies[i]);
 
 							float r, g, b;
-							wavelengthToRGBCIE(wavelength, r, g, b);
+							wavelengthToRGBCIE(wavelength, r, g, b, useP3);
 
 							float L, a, b_comp;
 							RGBtoLab(r, g, b, L, a, b_comp);
@@ -457,7 +496,7 @@ ColourMapper::ColourResult ColourMapper::frequenciesToColour(
 				float wavelength = logFrequencyToWavelength(envelopeFrequencies[i]);
 
 				float r, g, b;
-				wavelengthToRGBCIE(wavelength, r, g, b);
+				wavelengthToRGBCIE(wavelength, r, g, b, useP3);
 
 				float L, a, b_comp;
 				RGBtoLab(r, g, b, L, a, b_comp);

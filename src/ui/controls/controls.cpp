@@ -12,7 +12,7 @@
 
 namespace Controls {
 
-void renderFrequencyInfoPanel(AudioInput& audioInput, float* clear_color) {
+void renderFrequencyInfoPanel(AudioInput& audioInput, float* clear_color, const UIState& state) {
     if (ImGui::CollapsingHeader("FREQUENCY INFO", ImGuiTreeNodeFlags_DefaultOpen)) {
         ImGui::Indent(10);
         
@@ -27,7 +27,7 @@ void renderFrequencyInfoPanel(AudioInput& audioInput, float* clear_color) {
         }
         
         auto currentColourResult = ColourMapper::frequenciesToColour(
-            frequencies, magnitudes, {}, UIConstants::DEFAULT_SAMPLE_RATE, UIConstants::DEFAULT_GAMMA);
+            frequencies, magnitudes, {}, UIConstants::DEFAULT_SAMPLE_RATE, UIConstants::DEFAULT_GAMMA, state.useP3ColourSpace);
 
         if (!peaks.empty()) {
             ImGui::Text("Dominant: %.1f Hz", static_cast<double>(peaks[0].frequency));
@@ -172,6 +172,15 @@ void renderAdvancedSettingsPanel(UIState& state) {
                 }
                 ImGui::EndPopup();
             }
+
+            ImGui::Spacing();
+            if (ImGui::Checkbox("Use P3 Wide Colour Gamut", &state.useP3ColourSpace)) {
+                // State change handled by checkbox
+            }
+            if (ImGui::IsItemHovered()) {
+                ImGui::SetTooltip("Enables Display P3 colour space for wider colour gamut.\nProvides more vivid and accurate colours on supported displays.");
+            }
+
 			ImGui::Unindent(10);
         }
         
