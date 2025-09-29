@@ -42,6 +42,7 @@ struct UIState {
     bool sidebarOnLeft = false;
     bool apiServerEnabled = false;
     bool smoothingEnabled = true;
+    bool useP3ColourSpace = true;
 };
 
 void initialiseApp(UIState& state);

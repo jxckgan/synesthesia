@@ -9,7 +9,7 @@
 struct UIState;
 
 namespace Controls {
-    void renderFrequencyInfoPanel(AudioInput& audioInput, float* clear_color);
+    void renderFrequencyInfoPanel(AudioInput& audioInput, float* clear_color, const UIState& state);
     
     void renderVisualiserSettingsPanel(SpringSmoother& colourSmoother, 
                                      float& smoothingAmount,

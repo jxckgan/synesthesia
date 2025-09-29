@@ -131,7 +131,7 @@ void AudioProcessor::processBuffer(const AudioBuffer& buffer) {
 	{
 		std::lock_guard lock(resultsMutex);
 		currentPeaks = std::move(tempPeaks);
-		currentColour = ColourMapper::frequenciesToColour(tempFreqs, tempMags);
+		currentColour = ColourMapper::frequenciesToColour(tempFreqs, tempMags, {}, 44100.0f, 1.0f, true);
 		currentDominantFrequency = !currentPeaks.empty() ? currentPeaks[0].frequency : 0.0f;
 	}
 }

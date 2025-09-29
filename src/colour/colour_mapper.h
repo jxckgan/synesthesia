@@ -44,29 +44,32 @@ public:
 	static ColourResult frequenciesToColour(const std::vector<float>& frequencies,
 											const std::vector<float>& magnitudes,
 											const std::vector<float>& spectralEnvelope = {},
-											float sampleRate = 44100.0f, float gamma = 1.0f);
+											float sampleRate = 44100.0f, float gamma = 1.0f, bool useP3 = true);
 
 	static float logFrequencyToWavelength(float freq);
 	static void RGBtoLab(float r, float g, float b, float& L, float& a, float& b_comp);
 	static void LabtoRGB(float L, float a, float b_comp, float& r, float& g, float& b);
+
+	static void XYZtoRGB(float X, float Y, float Z, float& r, float& g, float& b);
+	static void RGBtoXYZ(float r, float g, float b, float& X, float& Y, float& Z);
+	static void XYZtoRGB_P3(float X, float Y, float Z, float& r, float& g, float& b);
+	static void RGBtoXYZ_P3(float r, float g, float b, float& X, float& Y, float& Z);
 
 	static SpectralCharacteristics calculateSpectralCharacteristics(
 		const std::vector<float>& spectrum, float sampleRate);
 
 private:
 	static bool isValidFrequencyMagnitudePair(float frequency, float magnitude) {
-		return std::isfinite(frequency) && std::isfinite(magnitude) && 
+		return std::isfinite(frequency) && std::isfinite(magnitude) &&
 		       frequency > 0.0f && magnitude >= 0.0f;
 	}
-	
+
 	static constexpr bool isValidFrequency(float frequency) {
 		return frequency >= MIN_FREQ && frequency <= MAX_FREQ;
 	}
-	static void XYZtoRGB(float X, float Y, float Z, float& r, float& g, float& b);
-	static void RGBtoXYZ(float r, float g, float b, float& X, float& Y, float& Z);
 	static void XYZtoLab(float X, float Y, float Z, float& L, float& a, float& b);
 	static void LabtoXYZ(float L, float a, float b, float& X, float& Y, float& Z);
-	static void wavelengthToRGBCIE(float wavelength, float& r, float& g, float& b);
+	static void wavelengthToRGBCIE(float wavelength, float& r, float& g, float& b, bool useP3 = true);
 	static void interpolateCIE(float wavelength, float& X, float& Y, float& Z);
 
 	static constexpr float REF_X = 0.95047f;

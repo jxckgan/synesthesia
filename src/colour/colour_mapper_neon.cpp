@@ -61,22 +61,42 @@ namespace AccurateMath {
 }
 
 void rgbToXyz(std::span<const float> r, std::span<const float> g, std::span<const float> b,
-              std::span<float> X, std::span<float> Y, std::span<float> Z, size_t count) {
+              std::span<float> X, std::span<float> Y, std::span<float> Z, size_t count, bool useP3) {
     const size_t size = std::min({r.size(), g.size(), b.size(), X.size(), Y.size(), Z.size(), count});
     const size_t vectorSize = size & ~3u;
-    
-    // sRGB to XYZ matrix coefficients
-    float32x4_t r_to_x = vdupq_n_f32(0.4124f);
-    float32x4_t g_to_x = vdupq_n_f32(0.3576f);
-    float32x4_t b_to_x = vdupq_n_f32(0.1805f);
-    
-    float32x4_t r_to_y = vdupq_n_f32(0.2126f);
-    float32x4_t g_to_y = vdupq_n_f32(0.7152f);
-    float32x4_t b_to_y = vdupq_n_f32(0.0722f);
-    
-    float32x4_t r_to_z = vdupq_n_f32(0.0193f);
-    float32x4_t g_to_z = vdupq_n_f32(0.1192f);
-    float32x4_t b_to_z = vdupq_n_f32(0.9505f);
+
+    // RGB to XYZ matrix coefficients (sRGB or P3)
+    float32x4_t r_to_x, g_to_x, b_to_x;
+    float32x4_t r_to_y, g_to_y, b_to_y;
+    float32x4_t r_to_z, g_to_z, b_to_z;
+
+    if (useP3) {
+        // P3-D65 matrix coefficients
+        r_to_x = vdupq_n_f32(0.5151f);
+        g_to_x = vdupq_n_f32(0.292f);
+        b_to_x = vdupq_n_f32(0.1571f);
+
+        r_to_y = vdupq_n_f32(0.2412f);
+        g_to_y = vdupq_n_f32(0.6922f);
+        b_to_y = vdupq_n_f32(0.0666f);
+
+        r_to_z = vdupq_n_f32(-0.0011f);
+        g_to_z = vdupq_n_f32(0.0419f);
+        b_to_z = vdupq_n_f32(0.7841f);
+    } else {
+        // sRGB matrix coefficients
+        r_to_x = vdupq_n_f32(0.4124f);
+        g_to_x = vdupq_n_f32(0.3576f);
+        b_to_x = vdupq_n_f32(0.1805f);
+
+        r_to_y = vdupq_n_f32(0.2126f);
+        g_to_y = vdupq_n_f32(0.7152f);
+        b_to_y = vdupq_n_f32(0.0722f);
+
+        r_to_z = vdupq_n_f32(0.0193f);
+        g_to_z = vdupq_n_f32(0.1192f);
+        b_to_z = vdupq_n_f32(0.9505f);
+    }
     
     // Gamma correction constants (use inverse for multiplication instead of division)
     float32x4_t gamma_threshold = vdupq_n_f32(0.04045f);
@@ -158,22 +178,42 @@ void rgbToXyz(std::span<const float> r, std::span<const float> g, std::span<cons
 }
 
 void xyzToRgb(std::span<const float> X, std::span<const float> Y, std::span<const float> Z,
-              std::span<float> r, std::span<float> g, std::span<float> b, size_t count) {
+              std::span<float> r, std::span<float> g, std::span<float> b, size_t count, bool useP3) {
     const size_t size = std::min({X.size(), Y.size(), Z.size(), r.size(), g.size(), b.size(), count});
     const size_t vectorSize = size & ~3u;
-    
-    // XYZ to sRGB matrix coefficients
-    float32x4_t x_to_r = vdupq_n_f32(3.2406f);
-    float32x4_t y_to_r = vdupq_n_f32(-1.5372f);
-    float32x4_t z_to_r = vdupq_n_f32(-0.4986f);
-    
-    float32x4_t x_to_g = vdupq_n_f32(-0.9689f);
-    float32x4_t y_to_g = vdupq_n_f32(1.8758f);
-    float32x4_t z_to_g = vdupq_n_f32(0.0415f);
-    
-    float32x4_t x_to_b = vdupq_n_f32(0.0557f);
-    float32x4_t y_to_b = vdupq_n_f32(-0.2040f);
-    float32x4_t z_to_b = vdupq_n_f32(1.0570f);
+
+    // XYZ to RGB matrix coefficients (sRGB or P3)
+    float32x4_t x_to_r, y_to_r, z_to_r;
+    float32x4_t x_to_g, y_to_g, z_to_g;
+    float32x4_t x_to_b, y_to_b, z_to_b;
+
+    if (useP3) {
+        // P3-D65 matrix coefficients
+        x_to_r = vdupq_n_f32(2.4040f);
+        y_to_r = vdupq_n_f32(-0.9899f);
+        z_to_r = vdupq_n_f32(-0.3976f);
+
+        x_to_g = vdupq_n_f32(-0.8422f);
+        y_to_g = vdupq_n_f32(1.7988f);
+        z_to_g = vdupq_n_f32(0.0160f);
+
+        x_to_b = vdupq_n_f32(0.0482f);
+        y_to_b = vdupq_n_f32(-0.0974f);
+        z_to_b = vdupq_n_f32(1.2740f);
+    } else {
+        // sRGB matrix coefficients
+        x_to_r = vdupq_n_f32(3.2406f);
+        y_to_r = vdupq_n_f32(-1.5372f);
+        z_to_r = vdupq_n_f32(-0.4986f);
+
+        x_to_g = vdupq_n_f32(-0.9689f);
+        y_to_g = vdupq_n_f32(1.8758f);
+        z_to_g = vdupq_n_f32(0.0415f);
+
+        x_to_b = vdupq_n_f32(0.0557f);
+        y_to_b = vdupq_n_f32(-0.2040f);
+        z_to_b = vdupq_n_f32(1.0570f);
+    }
     
     // Gamma correction constants
     float32x4_t gamma_threshold = vdupq_n_f32(0.0031308f);
@@ -251,12 +291,12 @@ void xyzToRgb(std::span<const float> X, std::span<const float> Y, std::span<cons
 }
 
 void rgbToLab(std::span<const float> r, std::span<const float> g, std::span<const float> b,
-              std::span<float> L, std::span<float> a, std::span<float> b_comp, size_t count) {
+              std::span<float> L, std::span<float> a, std::span<float> b_comp, size_t count, bool useP3) {
     // Use temporary storage for XYZ conversion
     std::vector<float> X_temp(count), Y_temp(count), Z_temp(count);
-    
+
     // First convert RGB to XYZ
-    rgbToXyz(r, g, b, X_temp, Y_temp, Z_temp, count);
+    rgbToXyz(r, g, b, X_temp, Y_temp, Z_temp, count, useP3);
     
     // Then convert XYZ to Lab
     const size_t vectorSize = count & ~3u;
@@ -337,7 +377,7 @@ void rgbToLab(std::span<const float> r, std::span<const float> g, std::span<cons
 }
 
 void labToRgb(std::span<const float> L, std::span<const float> a, std::span<const float> b_comp,
-              std::span<float> r, std::span<float> g, std::span<float> b, size_t count) {
+              std::span<float> r, std::span<float> g, std::span<float> b, size_t count, bool useP3) {
     // Use temporary storage for XYZ conversion
     std::vector<float> X_temp(count), Y_temp(count), Z_temp(count);
     
@@ -423,7 +463,7 @@ void labToRgb(std::span<const float> L, std::span<const float> a, std::span<cons
         Z_temp[i] = std::max(0.0f, 1.08883f * fInv(fZ));
     }
     
-    xyzToRgb(X_temp, Y_temp, Z_temp, r, g, b, count);
+    xyzToRgb(X_temp, Y_temp, Z_temp, r, g, b, count, useP3);
 }
 
 void frequenciesToWavelengths(std::span<float> wavelengths, std::span<const float> frequencies, size_t count) {

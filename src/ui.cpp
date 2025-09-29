@@ -73,7 +73,7 @@ void updateUI(AudioInput& audioInput, const std::vector<AudioInput::DeviceInfo>&
 			mags.push_back(peak.magnitude);
 		}
 
-		auto colourResult = ColourMapper::frequenciesToColour(freqs, mags, {}, UIConstants::DEFAULT_SAMPLE_RATE, gamma);
+		auto colourResult = ColourMapper::frequenciesToColour(freqs, mags, {}, UIConstants::DEFAULT_SAMPLE_RATE, gamma, state.useP3ColourSpace);
 
 		colourResult.r = colourResult.r * (1.0f - whiteMix) + whiteMix;
 		colourResult.g = colourResult.g * (1.0f - whiteMix) + whiteMix;
@@ -178,7 +178,7 @@ void updateUI(AudioInput& audioInput, const std::vector<AudioInput::DeviceInfo>&
 			
 			DeviceManager::renderChannelSelection(state.deviceState, audioInput, devices);
 
-			Controls::renderFrequencyInfoPanel(audioInput, clear_color);
+			Controls::renderFrequencyInfoPanel(audioInput, clear_color, state);
 			
 			Controls::renderVisualiserSettingsPanel(
 				colourSmoother, 

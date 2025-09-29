@@ -175,7 +175,7 @@ void HeadlessInterface::displayFrequencyInfo() {
         }
         
         auto colourResult = ColourMapper::frequenciesToColour(
-            frequencies, magnitudes, {}, 44100.0f, 2.2f);
+            frequencies, magnitudes, {}, 44100.0f, 2.2f, true);
         
         currentR = colourResult.r;
         currentG = colourResult.g;
